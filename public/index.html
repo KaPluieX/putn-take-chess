@@ -66,7 +66,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 .sq.sel{background:#7fc97f!important;}
 .sq.dot::after{content:'';position:absolute;width:28%;height:28%;background:rgba(0,0,0,.22);border-radius:50%;}
 .sq.cap-ring{outline:4px solid rgba(0,0,0,.28);outline-offset:-4px;border-radius:2px;}
-.sq.place-sq{background:rgba(70,148,195,0.38)!important;cursor:crosshair;}
+.sq.place-sq{box-shadow:inset 0 0 0 9999px rgba(70,148,195,0.42);cursor:crosshair;}
 .sq.lf{background:#cdd16f!important;}
 .sq.lt{background:#aab84a!important;}
 
@@ -174,6 +174,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     <button class="cbtn" onclick="newGame()">New Game</button>
     <button class="cbtn" id="flipBtn" onclick="flipBoard()" title="Rotate board">⟳ Flip</button>
     <button class="cbtn" id="swapBtn" style="display:none;border-color:rgba(167,139,250,.4);color:#a78bfa;" onclick="doSwapColors()" title="Swap colors for next game">⇄ Colors</button>
+    <button class="cbtn" id="syncBtn" style="display:none;border-color:rgba(251,191,36,.4);color:#fbbf24;" onclick="doSyncRequest()" title="Re-sync board with opponent">↺ Sync</button>
     <button class="cbtn" id="onlineBtn" onclick="openOnline()" style="border-color:rgba(74,222,128,.3);color:#4ade80;">🌐 Online</button>
   </div>
 </header>
@@ -199,6 +200,10 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
         <div class="flabels" id="flabels"></div>
       </div>
     </div>
+    <div id="nameBar" style="display:none;width:min(560px,calc(100vw - 44px));display:none;margin-top:6px;display:flex;justify-content:space-between;font-size:.78rem;color:#9ca3af;padding:0 2px;">
+      <span id="nameBlack">⬛ -</span>
+      <span id="nameWhite">⬜ -</span>
+    </div>
   </div>
 
   <div class="sidebar">
@@ -218,7 +223,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     <div class="panel">
       <div class="ptitle">Put'N Take Rules</div>
       <div class="rules">
-        <b>Capture a piece?</b> You must place it back on any empty square — your choice where.<br><br>
+        <b>Capture a piece?</b> You must place it back on any empty square - your choice where.<br><br>
         <b>Pawn on promo rank</b> → promote (you pick the piece).<br><br>
         <b>In check?</b> You can capture anything and place the piece to block. Win by <b>checkmate</b>.
       </div>
@@ -367,7 +372,7 @@ function isInCheck(board,color){
   const ks=board.findIndex(p=>p===color+'K');
   if(ks===-1)return false;
   if(isAttacked(board,ks,opp(color)))return true;
-  // In Rhino variants, queen has extended reach — check if any enemy Rhino can reach king
+  // In Rhino variants, queen has extended reach - check if any enemy Rhino can reach king
   if(hasRhino()){
     const en=opp(color);
     for(let i=0;i<64;i++){
@@ -460,7 +465,7 @@ function applySM(board,move,castling,ep){
   }
   return res;
 }
-// Time-limited search — forced move after SEARCH_TIME_MS regardless of depth
+// Time-limited search - forced move after SEARCH_TIME_MS regardless of depth
 const SEARCH_TIME_MS=30000;
 let gDeadline=Infinity, gTimeUp=false;
 
@@ -493,7 +498,7 @@ function getBestMove(board,color,castling,ep,depth){
   moves.sort((a,b)=>displPot(board,b)-displPot(board,a));
   let best=color==='w'?-Infinity:Infinity,bm=moves[0];
   for(const m of moves){
-    if(gTimeUp)break; // time's up — use best found so far
+    if(gTimeUp)break; // time's up - use best found so far
     const{board:nb,castling:nc,ep:nep}=applySM(board,m,castling,ep);
     const s=minimax(nb,depth-1,-Infinity,Infinity,color==='b',opp(color),nc,nep);
     if(color==='w'?s>best:s<best){best=s;bm=m;}
@@ -521,8 +526,8 @@ function setTheme(t){
   document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.t===t));
 }
 const VARIANT_RULES={
-  'putn-take':'<b>Capture a piece?</b> You must place it back on any empty square — your choice where.<br><br><b>Pawn on promo rank</b> → promote (you pick the piece).<br><br><b>In check?</b> Capture anything and place the piece to block. Win by <b>checkmate</b>.',
-  'rhino':'<b>The Rhino 🦏</b> replaces the queen. It navigates through chained queen slides before capturing — attacks any square reachable through empty space.<br><br><b>Rhino cannot capture Rhino.</b> Win by <b>checkmate</b>. Standard chess otherwise.',
+  'putn-take':'<b>Capture a piece?</b> You must place it back on any empty square - your choice where.<br><br><b>Pawn on promo rank</b> → promote (you pick the piece).<br><br><b>In check?</b> Capture anything and place the piece to block. Win by <b>checkmate</b>.',
+  'rhino':'<b>The Rhino 🦏</b> replaces the queen. It navigates through chained queen slides before capturing - attacks any square reachable through empty space.<br><br><b>Rhino cannot capture Rhino.</b> Win by <b>checkmate</b>. Standard chess otherwise.',
   'rhino-putn':'<b>Rhino 🦏 + Put\'N Take</b> combined. Rhino queen moves anywhere reachable through empty squares. <b>Rhino cannot capture Rhino.</b><br><br>Capture any other piece → place it back anywhere. <b>Promote to Rhino</b> if you want. Win by <b>checkmate</b>.',
 };
 function setVariant(v){
@@ -644,7 +649,8 @@ function newGame(){
      mode:'normal',selected:null,legalDests:[],placement:null,history:[],
      gameMode:OL.active?'human':mv,
      aiColor:OL.active?null:(mv==='ai-w'?'w':mv==='ai-b'?'b':null),
-     thinking:false,promoInfo:null,lastFrom:null,lastTo:null,captureAtSq:null,animating:false};
+     thinking:false,promoInfo:null,lastFrom:null,lastTo:null,captureAtSq:null,animating:false,
+     moveCount:0};
   const sendNewGame=OL.active&&!OL.suppress;
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();updateStatus();updateHistory();
@@ -809,22 +815,23 @@ function selectPromo(piece){
   }
 }
 function afterTurn(){
+  G.moveCount=(G.moveCount||0)+1;
   // Send completed move to opponent (online mode)
   if(OL.active&&OL.pendingMove&&!OL.suppress){
-    sendWs({type:'move',move:OL.pendingMove,sync:{board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep}});
+    sendWs({type:'move',move:OL.pendingMove,sync:{board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep,moveCount:G.moveCount}});
   }
   // Apply sync state from opponent's move to correct any desync
   if(OL.syncState){
     const s=OL.syncState;OL.syncState=null;
     if(s.board.some((p,i)=>p!==G.board[i])||s.turn!==G.turn){
       console.warn('Desync corrected');
-      G.board=s.board;G.turn=s.turn;G.castling=s.castling;G.ep=s.ep;
+      G.board=s.board;G.turn=s.turn;G.castling=s.castling;G.ep=s.ep;if(s.moveCount)G.moveCount=s.moveCount;
     }
   }
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();
   const ms=humanLegalMoves(G.board,G.turn,G.castling,G.ep);
-  if(!ms.length){G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins — Checkmate! ♟':'Stalemate — Draw';}
+  if(!ms.length){G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins - Checkmate! ♟':'Stalemate - Draw';}
   updateStatus();
   if(!OL.active&&G.mode!=='gameover'&&G.mode!=='placement'&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,160);
 }
@@ -852,17 +859,26 @@ function buildLabels(){
 window.addEventListener('resize',()=>{const sz=sqSz();document.querySelectorAll('.rlabel').forEach(el=>el.style.height=sz+'px');});
 // ───── ONLINE MODE ────────────────────────────────────────
 let OL = {
-  active: false,     // in an online game
-  ws: null,          // WebSocket
-  color: null,       // 'w' or 'b' — our color
-  room: null,        // room code
-  pendingMove: null, // accumulated move (may gain placeSq after capture)
-  suppress: false,   // true while applying opponent's move (don't re-send)
-  syncState: null,   // board state from last received move (desync correction)
-  isCreator: false,  // true for the player who created the room (was white initially)
+  active: false,
+  ws: null,
+  color: null,
+  room: null,
+  pendingMove: null,
+  suppress: false,
+  syncState: null,
+  isCreator: false,
   reconnectAttempts: 0,
   reconnectTimer: null,
+  name: '',          // our display name
+  opponentName: '',  // opponent's display name
 };
+
+function doSyncRequest() {
+  // Broadcast our state; server will also trigger opponent to send theirs
+  const state={board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep,moveCount:G.moveCount||0};
+  sendWs({type:'sync_request',state});
+  document.getElementById('statusBox').textContent='Sync requested…';
+}
 
 function scheduleReconnect() {
   const delays = [2000, 4000, 8000];
@@ -902,11 +918,13 @@ function onWsMessage(e) {
     renderOnlineModal('waiting');
   }
   else if (msg.type === 'opponent_joined') {
+    OL.opponentName = msg.name || '';
     renderOnlineModal('starting');
     setTimeout(() => { closeOnlineModal(); startOnlineGame(); }, 1200);
   }
   else if (msg.type === 'joined') {
     OL.color = 'b';
+    OL.opponentName = msg.name || '';
     setVariant(msg.variant);
     renderOnlineModal('starting');
     setTimeout(() => { closeOnlineModal(); startOnlineGame(); }, 1200);
@@ -922,12 +940,16 @@ function onWsMessage(e) {
     else newGame();
   }
   else if (msg.type === 'swap_colors') {
-    // Both players swap, creator re-sends new_game to sync
     OL.color = OL.color === 'w' ? 'b' : 'w';
     boardFlipped = (OL.color === 'b');
     OL.suppress = true;
     newGame();
     buildLabels();
+    updateNameBar();
+  }
+  else if (msg.type === 'sync_ack_please') {
+    // Opponent used the sync button — send them our state
+    sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep, moveCount: G.moveCount||0 } });
   }
   else if (msg.type === 'rejoined') {
     OL.reconnectAttempts = 0;
@@ -937,14 +959,18 @@ function onWsMessage(e) {
     sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
   }
   else if (msg.type === 'opponent_rejoined') {
-    document.getElementById('statusBox').textContent = 'Opponent reconnected — syncing…';
+    document.getElementById('statusBox').textContent = 'Opponent reconnected - syncing…';
     sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
   }
   else if (msg.type === 'sync_state') {
     const s = msg.state;
-    G.board = s.board; G.turn = s.turn; G.castling = s.castling; G.ep = s.ep;
-    G.mode = 'normal'; G.selected = null; G.animating = false; G.placement = null;
-    renderBoard(); updateStatus();
+    // Only apply if opponent's state is ahead of ours (higher moveCount)
+    if ((s.moveCount || 0) >= (G.moveCount || 0)) {
+      G.board = s.board; G.turn = s.turn; G.castling = s.castling; G.ep = s.ep;
+      if (s.moveCount) G.moveCount = s.moveCount;
+      G.mode = 'normal'; G.selected = null; G.animating = false; G.placement = null;
+      renderBoard(); updateStatus();
+    }
   }
   else if (msg.type === 'resigned') {
     G.mode = 'gameover';
@@ -952,37 +978,54 @@ function onWsMessage(e) {
     updateStatus(); renderBoard();
   }
   else if (msg.type === 'opponent_disconnected') {
-    // Don't end game — they may reconnect within 2hr room lifetime
-    document.getElementById('statusBox').textContent = 'Opponent disconnected — waiting for reconnect…';
+    // Don't end game - they may reconnect within 2hr room lifetime
+    document.getElementById('statusBox').textContent = 'Opponent disconnected - waiting for reconnect…';
   }
   else if (msg.type === 'error') {
     renderOnlineModal('lobby', msg.msg);
   }
 }
 
+function updateNameBar() {
+  const bar = document.getElementById('nameBar');
+  if (!OL.active) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const myName = OL.name || 'You';
+  const oppName = OL.opponentName || 'Opponent';
+  const wName = OL.color === 'w' ? myName : oppName;
+  const bName = OL.color === 'b' ? myName : oppName;
+  document.getElementById('nameWhite').textContent = '⬜ ' + wName;
+  document.getElementById('nameBlack').textContent = '⬛ ' + bName;
+}
+
 function startOnlineGame() {
   OL.active = true;
   boardFlipped = (OL.color === 'b'); // auto-flip for Black
   buildLabels();
-  OL.suppress = true; // newGame called here shouldn't send sync
+  OL.suppress = true;
   newGame();
   document.getElementById('swapBtn').style.display = '';
+  document.getElementById('syncBtn').style.display = '';
+  updateNameBar();
 }
 
 function doSwapColors() {
-  // Swap locally and tell server to relay swap to both
   OL.color = OL.color === 'w' ? 'b' : 'w';
   boardFlipped = (OL.color === 'b');
   sendWs({type:'swap_colors'});
   OL.suppress = true;
   newGame();
   buildLabels();
+  updateNameBar();
 }
 
 function endOnlineGame() {
   OL.active = false; OL.color = null; OL.room = null; OL.pendingMove = null; OL.syncState = null;
+  OL.opponentName = '';
   boardFlipped = false; buildLabels();
   document.getElementById('swapBtn').style.display = 'none';
+  document.getElementById('syncBtn').style.display = 'none';
+  document.getElementById('nameBar').style.display = 'none';
   if (OL.ws) { OL.ws.close(); OL.ws = null; }
 }
 
@@ -1005,9 +1048,11 @@ function renderOnlineModal(screen, errMsg) {
   if (screen === 'lobby') {
     mdl.innerHTML = `
       <div class="otitle">🌐 Play Online</div>
+      <input class="oinput" id="nameInput" placeholder="Your name (optional)" maxlength="20"
+        value="${OL.name||''}" oninput="OL.name=this.value.trim()" style="margin-bottom:10px;">
       <button class="obtn pri" onclick="doCreateGame()">Create New Game</button>
       <div class="odivider">— or join existing —</div>
-      <input class="oinput" id="joinInput" placeholder="ENTER CODE" maxlength="5"
+      <input class="oinput" id="joinInput" placeholder="ENTER ROOM CODE" maxlength="5"
         oninput="this.value=this.value.toUpperCase()"
         onkeydown="if(event.key==='Enter')doJoinGame()">
       <button class="obtn sec" onclick="doJoinGame()">Join Game</button>
@@ -1038,10 +1083,10 @@ function doCreateGame() {
     OL.ws.onmessage = onWsMessage;
     OL.ws.onclose = () => { if(OL.active){ OL.reconnectAttempts=0; scheduleReconnect(); } };
     OL.ws.onopen = () => {
-      sendWs({ type: 'create', variant: VARIANT });
+      sendWs({ type: 'create', variant: VARIANT, name: OL.name || 'Anonymous' });
     };
     OL.ws.onerror = () => renderOnlineModal('lobby', 'Could not connect to server.');
-    renderOnlineModal('waiting'); // optimistic — will update on 'created' reply
+    renderOnlineModal('waiting'); // optimistic - will update on 'created' reply
   } catch(err) {
     renderOnlineModal('lobby', 'Connection failed: ' + err.message);
   }
@@ -1054,7 +1099,7 @@ function doJoinGame() {
     OL.ws = new WebSocket(wsUrl());
     OL.ws.onmessage = onWsMessage;
     OL.ws.onclose = () => { if(OL.active){ OL.reconnectAttempts=0; scheduleReconnect(); } };
-    OL.ws.onopen = () => sendWs({ type: 'join', room: code });
+    OL.ws.onopen = () => sendWs({ type: 'join', room: code, name: OL.name || 'Anonymous' });
     OL.ws.onerror = () => renderOnlineModal('lobby', 'Could not connect to server.');
   } catch(err) {
     renderOnlineModal('lobby', 'Connection failed: ' + err.message);
