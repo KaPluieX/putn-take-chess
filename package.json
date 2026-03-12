@@ -1,0 +1,13 @@
+{
+  "name": "putn-take-server",
+  "version": "1.0.0",
+  "description": "Put'N Take Chess online multiplayer server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.16.0"
+  }
+}
