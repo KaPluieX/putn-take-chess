@@ -87,6 +87,26 @@ wss.on('connection', (ws) => {
       send(opp, { type: 'new_game', variant: msg.variant });
     }
 
+    // ── Rejoin after disconnect ──
+    else if (msg.type === 'rejoin') {
+      const room = rooms.get(msg.room);
+      if (!room) { send(ws, { type: 'error', msg: 'Room expired. Start a new game.' }); return; }
+      ws.room = msg.room; ws.color = msg.color;
+      if (msg.color === 'w') room.white = ws;
+      else room.black = ws;
+      send(ws, { type: 'rejoined', color: msg.color });
+      const opp = msg.color === 'w' ? room.black : room.white;
+      if (opp?.readyState === 1) send(opp, { type: 'opponent_rejoined' });
+    }
+
+    // ── Sync state (board state exchange after reconnect) ──
+    else if (msg.type === 'sync_state') {
+      const room = rooms.get(ws.room);
+      if (!room) return;
+      const opp = ws.color === 'w' ? room.black : room.white;
+      if (opp?.readyState === 1) send(opp, { type: 'sync_state', state: msg.state });
+    }
+
     // ── Swap colors ──
     else if (msg.type === 'swap_colors') {
       const room = rooms.get(ws.room);

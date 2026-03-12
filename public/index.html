@@ -668,8 +668,7 @@ function renderBoard(){
       if(G.board[si])div.classList.add('cap-ring');else div.classList.add('dot');
     }
     if(G.mode==='placement'&&!G.board[si]){
-      const chk=isInCheck(G.board,G.turn);
-      if(!chk||placementOk(G.board,si,G.placement.piece,G.turn))div.classList.add('place-sq');
+      if(placementOk(G.board,si,G.placement.piece,G.turn))div.classList.add('place-sq');
     }
     if(G.board[si]&&!(DR.on&&si===DR.from)){
       const sp=document.createElement('span');sp.className='piece';
@@ -720,7 +719,7 @@ function handleClick(si){
   if(G.mode==='gameover'||G.thinking||G.animating)return;
   if(G.mode==='placement'&&hasPutnTake()){
     if(G.board[si])return;
-    if(isInCheck(G.board,G.turn)&&!placementOk(G.board,si,G.placement.piece,G.turn))return;
+    if(!placementOk(G.board,si,G.placement.piece,G.turn))return;
     const cp=G.placement.piece,fromSq=G.captureAtSq!==null?G.captureAtSq:si;
     G.mode='normal';G.placement=null;G.animating=true;
     if(OL.active&&OL.pendingMove)OL.pendingMove.placeSq=si; // complete the move
@@ -861,7 +860,31 @@ let OL = {
   suppress: false,   // true while applying opponent's move (don't re-send)
   syncState: null,   // board state from last received move (desync correction)
   isCreator: false,  // true for the player who created the room (was white initially)
+  reconnectAttempts: 0,
+  reconnectTimer: null,
 };
+
+function scheduleReconnect() {
+  const delays = [2000, 4000, 8000];
+  if (OL.reconnectAttempts >= delays.length) {
+    G.mode = 'gameover';
+    G.gameOverMsg = 'Connection lost. Reload and rejoin with code: ' + (OL.room || '?');
+    updateStatus(); renderBoard(); return;
+  }
+  const delay = delays[OL.reconnectAttempts++];
+  document.getElementById('statusBox').textContent = `Reconnecting… (attempt ${OL.reconnectAttempts}/3)`;
+  OL.reconnectTimer = setTimeout(doReconnect, delay);
+}
+
+function doReconnect() {
+  try {
+    OL.ws = new WebSocket(wsUrl());
+    OL.ws.onmessage = onWsMessage;
+    OL.ws.onclose = () => { if (OL.active) scheduleReconnect(); };
+    OL.ws.onerror = () => {};
+    OL.ws.onopen = () => sendWs({ type: 'rejoin', room: OL.room, color: OL.color });
+  } catch(e) { scheduleReconnect(); }
+}
 
 function wsUrl() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -906,15 +929,31 @@ function onWsMessage(e) {
     newGame();
     buildLabels();
   }
+  else if (msg.type === 'rejoined') {
+    OL.reconnectAttempts = 0;
+    clearTimeout(OL.reconnectTimer);
+    updateStatus();
+    // Send current board state so opponent can resync
+    sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
+  }
+  else if (msg.type === 'opponent_rejoined') {
+    document.getElementById('statusBox').textContent = 'Opponent reconnected — syncing…';
+    sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
+  }
+  else if (msg.type === 'sync_state') {
+    const s = msg.state;
+    G.board = s.board; G.turn = s.turn; G.castling = s.castling; G.ep = s.ep;
+    G.mode = 'normal'; G.selected = null; G.animating = false; G.placement = null;
+    renderBoard(); updateStatus();
+  }
   else if (msg.type === 'resigned') {
     G.mode = 'gameover';
     G.gameOverMsg = 'Opponent resigned. You win! 🏆';
     updateStatus(); renderBoard();
   }
   else if (msg.type === 'opponent_disconnected') {
-    G.mode = 'gameover';
-    G.gameOverMsg = 'Opponent disconnected.';
-    updateStatus(); renderBoard();
+    // Don't end game — they may reconnect within 2hr room lifetime
+    document.getElementById('statusBox').textContent = 'Opponent disconnected — waiting for reconnect…';
   }
   else if (msg.type === 'error') {
     renderOnlineModal('lobby', msg.msg);
@@ -997,7 +1036,7 @@ function doCreateGame() {
   try {
     OL.ws = new WebSocket(wsUrl());
     OL.ws.onmessage = onWsMessage;
-    OL.ws.onclose = () => { if(OL.active){G.mode='gameover';G.gameOverMsg='Disconnected from server.';updateStatus();renderBoard();} };
+    OL.ws.onclose = () => { if(OL.active){ OL.reconnectAttempts=0; scheduleReconnect(); } };
     OL.ws.onopen = () => {
       sendWs({ type: 'create', variant: VARIANT });
     };
@@ -1014,7 +1053,7 @@ function doJoinGame() {
   try {
     OL.ws = new WebSocket(wsUrl());
     OL.ws.onmessage = onWsMessage;
-    OL.ws.onclose = () => { if(OL.active){G.mode='gameover';G.gameOverMsg='Disconnected from server.';updateStatus();renderBoard();} };
+    OL.ws.onclose = () => { if(OL.active){ OL.reconnectAttempts=0; scheduleReconnect(); } };
     OL.ws.onopen = () => sendWs({ type: 'join', room: code });
     OL.ws.onerror = () => renderOnlineModal('lobby', 'Could not connect to server.');
   } catch(err) {
