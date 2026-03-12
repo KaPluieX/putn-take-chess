@@ -544,10 +544,17 @@ function buildSwatches(){
 
 // ───── ANIMATION ──────────────────────────────────────────
 function sqSz(){return document.getElementById('board').offsetWidth/8;}
+function sqPx(si){
+  // Convert square index to board pixel center, respecting flip
+  const sz=sqSz(),flip=isBoardFlipped();
+  const x=(flip?7-fl(si):fl(si))*sz+sz/2;
+  const y=(flip?rk(si):7-rk(si))*sz+sz/2;
+  return{x,y};
+}
 function slideAnim(piece,fromSq,toSq,ms,cb){
-  const ov=document.getElementById('animOv'),sz=sqSz();
-  const fx=fl(fromSq)*sz+sz/2,fy=(7-rk(fromSq))*sz+sz/2;
-  const tx=fl(toSq)*sz+sz/2,  ty=(7-rk(toSq))*sz+sz/2;
+  const ov=document.getElementById('animOv');
+  const {x:fx,y:fy}=sqPx(fromSq);
+  const {x:tx,y:ty}=sqPx(toSq);
   const el=document.createElement('span');
   el.className='ap';el.textContent=UP[piece]||'?';
   el.style.color=piece[0]==='w'?'#fffde7':'#1a1a1a';
@@ -618,7 +625,10 @@ function sqFromPt(cx,cy){
   const b=document.getElementById('board'),r=b.getBoundingClientRect(),sz=b.offsetWidth/8;
   const col=Math.floor((cx-r.left)/sz),row=Math.floor((cy-r.top)/sz);
   if(col<0||col>7||row<0||row>7)return -1;
-  return(7-row)*8+col;
+  const flip=isBoardFlipped();
+  const fileIdx=flip?7-col:col;
+  const rankIdx=flip?row:7-row;
+  return rankIdx*8+fileIdx;
 }
 
 // ───── BOARD FLIP ─────────────────────────────────────────
