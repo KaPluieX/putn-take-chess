@@ -54,14 +54,26 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 .sq{aspect-ratio:1;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;transition:background .1s;user-select:none;}
 
 /* Board themes */
-.board[data-t="classic"] .sq.l{background:#f0d9b5;}
-.board[data-t="classic"] .sq.d{background:#b58863;}
-.board[data-t="ocean"]   .sq.l{background:#d4e7f5;}
-.board[data-t="ocean"]   .sq.d{background:#4a7fa5;}
-.board[data-t="forest"]  .sq.l{background:#d9e8c8;}
-.board[data-t="forest"]  .sq.d{background:#5a7d4a;}
-.board[data-t="walnut"]  .sq.l{background:#e4d4b8;}
-.board[data-t="walnut"]  .sq.d{background:#7a4c2c;}
+.board[data-t="classic"]  .sq.l{background:#f0d9b5;}
+.board[data-t="classic"]  .sq.d{background:#b58863;}
+.board[data-t="ocean"]    .sq.l{background:#d4e7f5;}
+.board[data-t="ocean"]    .sq.d{background:#4a7fa5;}
+.board[data-t="forest"]   .sq.l{background:#d9e8c8;}
+.board[data-t="forest"]   .sq.d{background:#5a7d4a;}
+.board[data-t="walnut"]   .sq.l{background:#e4d4b8;}
+.board[data-t="walnut"]   .sq.d{background:#7a4c2c;}
+.board[data-t="midnight"] .sq.l{background:#b8c5d9;}
+.board[data-t="midnight"] .sq.d{background:#3a4a6b;}
+.board[data-t="rose"]     .sq.l{background:#f5d4d4;}
+.board[data-t="rose"]     .sq.d{background:#9b4a5a;}
+.board[data-t="slate"]    .sq.l{background:#d8dde6;}
+.board[data-t="slate"]    .sq.d{background:#556070;}
+.board[data-t="copper"]   .sq.l{background:#e8c9a0;}
+.board[data-t="copper"]   .sq.d{background:#9b5a2a;}
+.board[data-t="amethyst"] .sq.l{background:#e0d4f0;}
+.board[data-t="amethyst"] .sq.d{background:#7a4a9b;}
+.board[data-t="emerald"]  .sq.l{background:#c8e8d0;}
+.board[data-t="emerald"]  .sq.d{background:#2a6b4a;}
 
 .sq.sel{background:#7fc97f!important;}
 .sq.dot::after{content:'';position:absolute;width:28%;height:28%;background:rgba(0,0,0,.22);border-radius:50%;}
@@ -169,10 +181,10 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
   <div class="logo">Put'<span>N</span> Take</div>
   <div class="hcontrols">
     <div class="vsel">
-      <button class="vbtn" id="vbtn-vanilla" onclick="setVariant('vanilla')">♟ Vanilla</button>
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
       <button class="vbtn" id="vbtn-rhino" onclick="setVariant('rhino')">🦏 Rhino</button>
       <button class="vbtn" id="vbtn-rhinoputn" onclick="setVariant('rhino-putn')">🦏 Rhino P'N'T</button>
+      <button class="vbtn" id="vbtn-vanilla" onclick="setVariant('vanilla')">♟ Vanilla</button>
     </div>
     <div class="swatches" id="swatches"></div>
     <select class="cbtn" id="modeSelect" onchange="newGame()">
@@ -185,7 +197,18 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
       <option value="3" selected>Medium</option>
       <option value="4">Hard</option>
     </select>
+    <select class="cbtn" id="timeSelect" title="AI think time">
+      <option value="1000">1s</option>
+      <option value="15000">15s</option>
+      <option value="30000" selected>30s</option>
+      <option value="60000">1m</option>
+      <option value="120000">2m</option>
+      <option value="0">∞ No limit</option>
+    </select>
     <button class="cbtn" onclick="newGame()">New Game</button>
+    <button class="cbtn" onclick="saveGame()" title="Save game to file">💾 Save</button>
+    <button class="cbtn" onclick="document.getElementById('loadFileInput').click()" title="Load game from file">📂 Load</button>
+    <input type="file" id="loadFileInput" accept=".pntc,.json" style="display:none" onchange="loadGameFile(event)">
     <button class="cbtn" id="flipBtn" onclick="flipBoard()" title="Rotate board">⟳ Flip</button>
     <button class="cbtn" id="swapBtn" style="display:none;border-color:rgba(167,139,250,.4);color:#a78bfa;" onclick="doSwapColors()" title="Swap colors for next game">⇄ Colors</button>
     <button class="cbtn" id="syncBtn" style="display:none;border-color:rgba(251,191,36,.4);color:#fbbf24;" onclick="doSyncRequest()" title="Re-sync board with opponent">↺ Sync</button>
@@ -370,6 +393,23 @@ function isAttacked(board,square,byColor){
 let VARIANT='putn-take'; // 'putn-take' | 'rhino' | 'rhino-putn'
 function hasRhino(){return VARIANT==='rhino'||VARIANT==='rhino-putn';}
 function hasPutnTake(){return VARIANT==='putn-take'||VARIANT==='rhino-putn';}
+function rhinoPinExists(board,color){
+  // True if moving any of our Rhinos would expose our king to an enemy Rhino
+  const en=opp(color);
+  for(let i=0;i<64;i++){
+    if(board[i]!==color+'Q')continue;
+    const tb=[...board];tb[i]=null;
+    if(!isInCheck(tb,color))continue; // removing this Rhino doesn't expose king — not a pin
+    // Is it an enemy Rhino causing the pin specifically?
+    for(let j=0;j<64;j++){
+      if(tb[j]!==en+'Q')continue;
+      const{caps}=rhinoReach(tb,j,en);
+      const ks=tb.findIndex(p=>p===color+'K');
+      if(ks!==-1&&caps.includes(ks))return true;
+    }
+  }
+  return false;
+}
 
 // Rhino BFS: queen navigates through empty squares via chained queen slides.
 // Returns set of capturable squares and list of reachable empty squares.
@@ -489,8 +529,9 @@ function applySM(board,move,castling,ep){
   }
   return res;
 }
-// Time-limited search - forced move after SEARCH_TIME_MS regardless of depth
-const SEARCH_TIME_MS=30000;
+// Time-limited search
+let SEARCH_TIME_MS=30000;
+function getThinkMs(){const v=parseInt(document.getElementById('timeSelect')?.value||30000);return v===0?Infinity:v;}
 let gDeadline=Infinity, gTimeUp=false;
 
 function minimax(board,depth,alpha,beta,maximize,color,castling,ep){
@@ -514,7 +555,8 @@ function minimax(board,depth,alpha,beta,maximize,color,castling,ep){
   return best;
 }
 function getBestMove(board,color,castling,ep,depth){
-  gDeadline=Date.now()+SEARCH_TIME_MS;
+  SEARCH_TIME_MS=getThinkMs();
+  gDeadline=SEARCH_TIME_MS===Infinity?Infinity:Date.now()+SEARCH_TIME_MS;
   gTimeUp=false;
   const moves=hasPutnTake()?genSuperMoves(board,color,castling,ep):legalMoves(board,color,castling,ep);
   if(!moves.length)return null;
@@ -539,10 +581,16 @@ function moveNote(board,move,isCap){
 
 // ───── THEMES ─────────────────────────────────────────────
 const THEMES={
-  classic:{l:'#f0d9b5',d:'#b58863',name:'Classic'},
-  ocean:  {l:'#d4e7f5',d:'#4a7fa5',name:'Ocean'},
-  forest: {l:'#d9e8c8',d:'#5a7d4a',name:'Forest'},
-  walnut: {l:'#e4d4b8',d:'#7a4c2c',name:'Walnut'},
+  classic:  {l:'#f0d9b5',d:'#b58863',name:'Classic'},
+  ocean:    {l:'#d4e7f5',d:'#4a7fa5',name:'Ocean'},
+  forest:   {l:'#d9e8c8',d:'#5a7d4a',name:'Forest'},
+  walnut:   {l:'#e4d4b8',d:'#7a4c2c',name:'Walnut'},
+  midnight: {l:'#b8c5d9',d:'#3a4a6b',name:'Midnight'},
+  rose:     {l:'#f5d4d4',d:'#9b4a5a',name:'Rose'},
+  slate:    {l:'#d8dde6',d:'#556070',name:'Slate'},
+  copper:   {l:'#e8c9a0',d:'#9b5a2a',name:'Copper'},
+  amethyst: {l:'#e0d4f0',d:'#7a4a9b',name:'Amethyst'},
+  emerald:  {l:'#c8e8d0',d:'#2a6b4a',name:'Emerald'},
 };
 let curTheme='forest';
 function setTheme(t){
@@ -563,6 +611,93 @@ function setVariant(v){
   document.getElementById('vbtn-rhinoputn').classList.toggle('active',v==='rhino-putn');
   document.querySelector('.rules').innerHTML=VARIANT_RULES[v]||'';
   newGame();
+}
+
+// ───── SAVE / LOAD ────────────────────────────────────────
+function saveGame(){
+  const F='abcdefgh';
+  const result=G.mode==='gameover'
+    ?(G.gameOverMsg.includes('White wins')?'1-0':G.gameOverMsg.includes('Black wins')?'0-1':'½-½')
+    :'*';
+  const whiteName=OL.active?(OL.color==='w'?OL.name||'White':OL.opponentName||'White'):'White';
+  const blackName=OL.active?(OL.color==='b'?OL.name||'Black':OL.opponentName||'Black'):'Black';
+  const date=new Date().toISOString().slice(0,10);
+  const moves=G.history.map(h=>({
+    from:h.from,to:h.to,cap:h.cap||null,placeSq:h.placeSq??null,
+    placeProm:h.placeProm||null,promotion:h.promotion||null,notation:h.notation||''
+  }));
+  const data={app:'PutNTakeChess',version:1,variant:VARIANT,white:whiteName,black:blackName,date,result,moves};
+
+  // Human-readable header
+  let txt=`[App "PutNTakeChess"]\n[Variant "${VARIANT}"]\n[White "${whiteName}"]\n[Black "${blackName}"]\n[Date "${date}"]\n[Result "${result}"]\n\n`;
+  for(let i=0;i<G.history.length;i+=2){
+    txt+=`${Math.floor(i/2)+1}. ${G.history[i]?.notation||''}`;
+    if(G.history[i+1])txt+=` ${G.history[i+1].notation||''}`;
+    txt+=' ';
+  }
+  txt+=result+'\n\n// Machine-readable data:\n'+JSON.stringify(data,null,2);
+
+  const blob=new Blob([txt],{type:'text/plain'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`putnTake_${date}_${whiteName}vs${blackName}.pntc`;
+  a.click();URL.revokeObjectURL(url);
+}
+
+function loadGameFile(evt){
+  const file=evt.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const text=e.target.result;
+      let data;
+      const marker='// Machine-readable data:\n';
+      const idx=text.indexOf(marker);
+      if(idx!==-1)data=JSON.parse(text.slice(idx+marker.length));
+      else data=JSON.parse(text); // raw JSON fallback
+      replayGame(data);
+    }catch(err){alert('Could not load game: '+err.message);}
+  };
+  reader.readAsText(file);
+  evt.target.value='';
+}
+
+function replayGame(data){
+  VARIANT=data.variant||'put-n-take';
+  // setVariant calls newGame() which resets G completely
+  setVariant(VARIANT);
+  G.gameMode='human'; // disable AI triggering during replay
+
+  for(const m of data.moves){
+    // Apply move (handles normal promotion via m.promotion)
+    const res=applyMove(G.board,m,G.castling,G.ep);
+    G.board=res.board;G.castling=res.castling;G.ep=res.ep;
+    G.lastFrom=m.from;G.lastTo=m.to;
+
+    // Apply Put'N Take placement
+    if(m.placeSq!==null&&m.placeSq!==undefined&&m.cap){
+      let pl=m.cap;
+      if(m.placeProm){pl=m.cap[0]+m.placeProm;}
+      else if(pl[1]==='P'){const r=rk(m.placeSq);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
+      G.board[m.placeSq]=pl;G.lastTo=m.placeSq;
+    }
+
+    G.history.push({...m});
+    G.moveCount=(G.moveCount||0)+1;
+    G.turn=opp(G.turn);
+    G.snapshots.push({board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep});
+  }
+
+  // Check game-end state
+  const lms=humanLegalMoves(G.board,G.turn,G.castling,G.ep);
+  if(!lms.length){
+    const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';
+    G.mode='gameover';
+    G.gameOverMsg=isInCheck(G.board,G.turn)
+      ?(opp(G.turn)==='w'?'White':'Black')+' wins — '+mateMsg
+      :'Stalemate — Draw';
+  }
+  renderBoard();updateStatus();updateHistory();
 }
 
 function buildSwatches(){
@@ -748,8 +883,9 @@ function updateStatus(){
     const pn={P:'Pawn',N:'Knight',B:'Bishop',R:'Rook',Q:'Queen',K:'King'}[G.placement.piece[1]];
     el.textContent=`Place the ${G.placement.piece[0]==='w'?'White':'Black'} ${pn}`;return;
   }
-  if(G.thinking){el.className='think';el.textContent=`Engine thinking… (max ${SEARCH_TIME_MS/1000}s)`;return;}
-  if(isInCheck(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+(hasRhino()?' 🦏 RHINO CHECK!':' in CHECK!');return;}
+  if(G.thinking){const tms=getThinkMs();const tlabel=tms===Infinity?'no limit':tms>=60000?tms/60000+'m':tms/1000+'s';el.className='think';el.textContent=`Engine thinking… (${tlabel})`;return;}
+  if(isInCheck(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+(hasRhino()?' 🦏 Rhino Check!':' in Check!');return;}
+  if(hasRhino()&&rhinoPinExists(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+' — ⚠️ Rhino Pinned!';return;}
   el.textContent=(G.turn==='w'?'White':'Black')+' to move';
 }
 function updateHistory(){
@@ -899,6 +1035,10 @@ function handleClick(si){
     const cp=G.placement.piece,fromSq=G.captureAtSq!==null?G.captureAtSq:si;
     G.mode='normal';G.placement=null;G.animating=true;
     if(OL.active&&OL.pendingMove)OL.pendingMove.placeSq=si; // complete the move
+    const F_='abcdefgh';
+    G.history[G.history.length-1].notation+=`@${F_[fl(si)]}${rk(si)+1}`;
+    G.history[G.history.length-1].placeSq=si;
+    updateHistory();
     slideAnim(cp,fromSq,si,200,()=>{
       G.animating=false;G.board[si]=cp;G.lastTo=si;
       if(cp[1]==='P'){const r=rk(si);if((cp[0]==='w'&&r===7)||(cp[0]==='b'&&r===0)){
@@ -942,7 +1082,7 @@ function executeMove(move){
     const res=applyMove(G.board,move,G.castling,G.ep);
     G.board=res.board;G.castling=res.castling;G.ep=res.ep;
     G.lastFrom=move.from;G.lastTo=move.to;
-    G.history.push({notation:note,from:move.from,to:move.to});updateHistory();
+    G.history.push({notation:note,from:move.from,to:move.to,cap:move.cap||null,placeSq:move.placeSq??null,promotion:move.promotion||null});updateHistory();
     if(cap&&hasPutnTake()){
       if(move.placeSq!==undefined){
         // AI super-move: show capture result, pause, then slide piece to chosen square
@@ -953,13 +1093,13 @@ function executeMove(move){
             if(pl[1]==='P'){const r=rk(move.placeSq);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
             G.board[move.placeSq]=pl;G.lastTo=move.placeSq;
             const F='abcdefgh';
-            G.history[G.history.length-1].notation+=`→${F[fl(move.placeSq)]}${rk(move.placeSq)+1}`;
+            G.history[G.history.length-1].notation+=`@${F[fl(move.placeSq)]}${rk(move.placeSq)+1}`;
+            G.history[G.history.length-1].placeSq=move.placeSq;
             updateHistory();G.turn=opp(G.turn);G.animating=false;afterTurn();
           });
         },350);
       } else {
         G.captureAtSq=move.to;G.placement={piece:cap};G.mode='placement';
-        G.history[G.history.length-1].notation+=`[place ${UP[cap]}]`;
         updateHistory();G.animating=false;renderBoard();updateStatus();
       }
       return;
@@ -978,6 +1118,7 @@ function selectPromo(piece){
   if(!G.promoInfo)return;
   if(G.promoInfo.isPlacement){
     G.board[G.promoInfo.sq]=G.promoInfo.color+piece[1];
+    G.history[G.history.length-1].placeProm=piece[1];
     G.promoInfo=null;G.mode='normal';G.turn=opp(G.turn);afterTurn();
   } else {
     const move={...G.promoInfo.move,promotion:piece[1]};
@@ -1003,7 +1144,7 @@ function afterTurn(){
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();
   const ms=humanLegalMoves(G.board,G.turn,G.castling,G.ep);
-  if(!ms.length){G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins - Checkmate! ♟':'Stalemate - Draw';}
+  if(!ms.length){const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins — '+mateMsg:'Stalemate — Draw';}
   updateStatus();
   if(!OL.active&&G.mode!=='gameover'&&G.mode!=='placement'&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,160);
 }
