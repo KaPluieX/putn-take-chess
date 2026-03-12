@@ -119,9 +119,22 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 #hist{max-height:170px;overflow-y:auto;font-size:.7rem;font-family:monospace;color:rgba(255,255,255,.6);line-height:1.85;}
 #hist::-webkit-scrollbar{width:3px;}
 #hist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px;}
-.hr{display:flex;gap:4px;}
+.hr{display:flex;gap:4px;cursor:pointer;border-radius:4px;padding:1px 3px;}
+.hr:hover{background:rgba(255,255,255,.05);}
+.hr.hactive{background:rgba(245,158,11,.15);border-radius:4px;}
+.hr.hactive .hn,.hr.hactive span{color:#f59e0b;}
 .hn{color:rgba(255,255,255,.25);min-width:18px;}
 .hw{min-width:66px;}
+/* History nav bar */
+#histNav{display:flex;gap:5px;align-items:center;margin-top:6px;flex-wrap:wrap;}
+.hnbtn{padding:3px 9px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#e0e0f0;font-size:.76rem;cursor:pointer;font-family:'Inter',sans-serif;}
+.hnbtn:hover{background:rgba(255,255,255,.14);}
+.hnbtn:disabled{opacity:.3;cursor:default;}
+#histViewMsg{font-size:.68rem;color:#fbbf24;min-width:80px;text-align:center;}
+/* Rewind overlay */
+#rewindOv{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);align-items:center;justify-content:center;z-index:200;}
+#rewindOv.show{display:flex;}
+#rewindMdl{background:#16213e;border:1px solid rgba(245,158,11,.4);border-radius:14px;padding:24px 28px;max-width:320px;width:90vw;text-align:center;}
 .rules{font-size:.72rem;color:rgba(255,255,255,.4);line-height:1.6;}
 .rules b{color:#f59e0b;}
 
@@ -156,6 +169,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
   <div class="logo">Put'<span>N</span> Take</div>
   <div class="hcontrols">
     <div class="vsel">
+      <button class="vbtn" id="vbtn-vanilla" onclick="setVariant('vanilla')">♟ Vanilla</button>
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
       <button class="vbtn" id="vbtn-rhino" onclick="setVariant('rhino')">🦏 Rhino</button>
       <button class="vbtn" id="vbtn-rhinoputn" onclick="setVariant('rhino-putn')">🦏 Rhino P'N'T</button>
@@ -180,6 +194,9 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </header>
 
 <div id="ghost"></div>
+<div id="rewindOv">
+  <div id="rewindMdl"></div>
+</div>
 <div id="onlineOv">
   <div id="onlineMdl"></div>
 </div>
@@ -218,6 +235,13 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     </div>
     <div class="panel">
       <div class="ptitle">Move History</div>
+      <div id="histNav">
+        <button class="hnbtn" id="hnFirst" onclick="histJump(0)" title="First position">⏮</button>
+        <button class="hnbtn" id="hnBack"  onclick="histBack()"  title="Previous move (←)">◀</button>
+        <span id="histViewMsg"></span>
+        <button class="hnbtn" id="hnFwd"   onclick="histFwd()"   title="Next move (→)">▶</button>
+        <button class="hnbtn" id="hnLast"  onclick="histToLive()" title="Latest position">⏭</button>
+      </div>
       <div id="hist"></div>
     </div>
     <div class="panel">
@@ -526,12 +550,14 @@ function setTheme(t){
   document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.t===t));
 }
 const VARIANT_RULES={
-  'putn-take':'<b>Capture a piece?</b> You must place it back on any empty square - your choice where.<br><br><b>Pawn on promo rank</b> → promote (you pick the piece).<br><br><b>In check?</b> Capture anything and place the piece to block. Win by <b>checkmate</b>.',
-  'rhino':'<b>The Rhino 🦏</b> replaces the queen. It navigates through chained queen slides before capturing - attacks any square reachable through empty space.<br><br><b>Rhino cannot capture Rhino.</b> Win by <b>checkmate</b>. Standard chess otherwise.',
+  'vanilla':   '<b>Standard chess.</b> No special rules — castling, en passant, promotion, and checkmate as normal. Just pure chess.',
+  'putn-take': '<b>Capture a piece?</b> You must place it back on any empty square - your choice where.<br><br><b>Pawn on promo rank</b> → promote (you pick the piece).<br><br><b>In check?</b> Capture anything and place the piece to block. Win by <b>checkmate</b>.',
+  'rhino':     '<b>The Rhino 🦏</b> replaces the queen. It navigates through chained queen slides before capturing - attacks any square reachable through empty space.<br><br><b>Rhino cannot capture Rhino.</b> Win by <b>checkmate</b>. Standard chess otherwise.',
   'rhino-putn':'<b>Rhino 🦏 + Put\'N Take</b> combined. Rhino queen moves anywhere reachable through empty squares. <b>Rhino cannot capture Rhino.</b><br><br>Capture any other piece → place it back anywhere. <b>Promote to Rhino</b> if you want. Win by <b>checkmate</b>.',
 };
 function setVariant(v){
   VARIANT=v;
+  document.getElementById('vbtn-vanilla').classList.toggle('active',v==='vanilla');
   document.getElementById('vbtn-putn').classList.toggle('active',v==='putn-take');
   document.getElementById('vbtn-rhino').classList.toggle('active',v==='rhino');
   document.getElementById('vbtn-rhinoputn').classList.toggle('active',v==='rhino-putn');
@@ -645,15 +671,19 @@ function isBoardFlipped(){return boardFlipped;}
 let G={};
 function newGame(){
   const mv=document.getElementById('modeSelect').value;
-  G={board:initBoard(),turn:'w',castling:{wK:true,wQ:true,bK:true,bQ:true},ep:null,
+  const ib=initBoard(),ic={wK:true,wQ:true,bK:true,bQ:true};
+  G={board:ib,turn:'w',castling:ic,ep:null,
      mode:'normal',selected:null,legalDests:[],placement:null,history:[],
      gameMode:OL.active?'human':mv,
      aiColor:OL.active?null:(mv==='ai-w'?'w':mv==='ai-b'?'b':null),
      thinking:false,promoInfo:null,lastFrom:null,lastTo:null,captureAtSq:null,animating:false,
-     moveCount:0};
+     moveCount:0,
+     snapshots:[{board:[...ib],turn:'w',castling:{...ic},ep:null}],
+     histIdx:null,
+     pendingRewindIdx:null};
   const sendNewGame=OL.active&&!OL.suppress;
   OL.pendingMove=null; OL.suppress=false;
-  renderBoard();updateStatus();updateHistory();
+  renderBoard();updateStatus();updateHistory();updateHistNav();
   if(sendNewGame)sendWs({type:'new_game',variant:VARIANT});
   if(G.gameMode==='ai-w')setTimeout(doAiMove,400);
 }
@@ -662,23 +692,33 @@ function newGame(){
 function renderBoard(){
   const be=document.getElementById('board');be.innerHTML='';
   const flip=isBoardFlipped();
+  // History view mode: show snapshot, suppress interaction
+  const histMode=G.histIdx!==null;
+  const viewSnap=histMode?G.snapshots[G.histIdx]:null;
+  const viewBoard=histMode?viewSnap.board:G.board;
+  const prevMove=histMode&&G.histIdx>0?G.history[G.histIdx-1]:null;
   for(let v=0;v<64;v++){
     const r8=flip?Math.floor(v/8):7-Math.floor(v/8),f8=flip?7-v%8:v%8,si=sq(r8,f8);
     const isL=(r8+f8)%2!==0;
     const div=document.createElement('div');
     div.className='sq '+(isL?'l':'d');
-    if(si===G.lastFrom)div.classList.add('lf');
-    if(si===G.lastTo)div.classList.add('lt');
-    if(G.mode==='selected'&&si===G.selected)div.classList.add('sel');
-    if(G.mode==='selected'&&G.legalDests.some(m=>m.to===si)){
-      if(G.board[si])div.classList.add('cap-ring');else div.classList.add('dot');
+    if(histMode){
+      if(prevMove&&si===prevMove.from)div.classList.add('lf');
+      if(prevMove&&si===prevMove.to)div.classList.add('lt');
+    } else {
+      if(si===G.lastFrom)div.classList.add('lf');
+      if(si===G.lastTo)div.classList.add('lt');
+      if(G.mode==='selected'&&si===G.selected)div.classList.add('sel');
+      if(G.mode==='selected'&&G.legalDests.some(m=>m.to===si)){
+        if(G.board[si])div.classList.add('cap-ring');else div.classList.add('dot');
+      }
+      if(G.mode==='placement'&&!G.board[si]){
+        if(placementOk(G.board,si,G.placement.piece,G.turn))div.classList.add('place-sq');
+      }
     }
-    if(G.mode==='placement'&&!G.board[si]){
-      if(placementOk(G.board,si,G.placement.piece,G.turn))div.classList.add('place-sq');
-    }
-    if(G.board[si]&&!(DR.on&&si===DR.from)){
+    if(viewBoard[si]&&!(DR.on&&si===DR.from)){
       const sp=document.createElement('span');sp.className='piece';
-      const pc=G.board[si];
+      const pc=viewBoard[si];
       sp.textContent=UP[pc]||'?';
       const isRhino=hasRhino()&&pc[1]==='Q';
       if(isRhino){
@@ -690,15 +730,17 @@ function renderBoard(){
       }
       div.appendChild(sp);
     }
-    div.addEventListener('pointerdown',e=>onSqPointerDown(e,si));
-    // Suppress click events that fire right after a drag release
-    div.addEventListener('click',()=>{if(Date.now()-lastDragEndTs<150)return;handleClick(si);});
+    if(!histMode){
+      div.addEventListener('pointerdown',e=>onSqPointerDown(e,si));
+      div.addEventListener('click',()=>{if(Date.now()-lastDragEndTs<150)return;handleClick(si);});
+    }
     be.appendChild(div);
   }
   const dot=document.getElementById('tdot'),txt=document.getElementById('ttext');
   if(G.mode!=='gameover'){dot.className='tdot '+(G.turn==='w'?'w':'b');txt.textContent=(G.turn==='w'?'White':'Black')+' to move';}
 }
 function updateStatus(){
+  if(G.histIdx!==null){updateViewStatus();return;}
   const el=document.getElementById('statusBox');el.className='';
   if(G.mode==='gameover'){el.className='gameover';el.textContent=G.gameOverMsg;return;}
   if(G.mode==='placement'){
@@ -714,11 +756,139 @@ function updateHistory(){
   const el=document.getElementById('hist'),lines=[];
   for(let i=0;i<G.history.length;i+=2){
     const n=Math.floor(i/2)+1;
-    lines.push(`<div class="hr"><span class="hn">${n}.</span><span class="hw">${G.history[i]?.notation||''}</span><span>${G.history[i+1]?.notation||''}</span></div>`);
+    const hi1=G.histIdx===i+1?'hactive':'',hi2=G.histIdx===i+2?'hactive':'';
+    lines.push(`<div class="hr ${hi1}" onclick="histJump(${i+1})"><span class="hn">${n}.</span><span class="hw">${G.history[i]?.notation||''}</span></div>`);
+    if(G.history[i+1]){
+      lines.push(`<div class="hr ${hi2}" onclick="histJump(${i+2})"><span class="hn"></span><span>${G.history[i+1]?.notation||''}</span></div>`);
+    }
   }
-  el.innerHTML=lines.join('');el.scrollTop=el.scrollHeight;
+  el.innerHTML=lines.join('');
+  // Scroll active move into view
+  const active=el.querySelector('.hactive');
+  if(active)active.scrollIntoView({block:'nearest'});
+  else el.scrollTop=el.scrollHeight;
+  updateHistNav();
+}
+
+function updateHistNav(){
+  const total=G.snapshots.length-1;
+  const cur=G.histIdx;
+  const live=cur===null;
+  document.getElementById('hnFirst').disabled=live&&total===0||(!live&&cur===0);
+  document.getElementById('hnBack').disabled=live&&total===0||(!live&&cur===0);
+  document.getElementById('hnFwd').disabled=live;
+  document.getElementById('hnLast').disabled=live;
+  if(live){
+    document.getElementById('histViewMsg').textContent=total>0?`${total} moves`:'';
+  } else {
+    document.getElementById('histViewMsg').textContent=`${cur} / ${total}`;
+  }
+  updateViewStatus();
+}
+
+function updateViewStatus(){
+  if(G.histIdx===null){updateStatus();return;}
+  const cur=G.histIdx,total=G.snapshots.length-1;
+  const sb=document.getElementById('statusBox');
+  sb.className='place';
+  const isAI=!OL.active&&G.gameMode!=='human';
+  const isOnline=OL.active;
+  let html=`Viewing move ${cur} of ${total}`;
+  if(cur<total){
+    if(isAI||!isOnline)html+=` &nbsp;<button class="hnbtn" onclick="histResume()" style="background:#f59e0b20;border-color:#f59e0b;color:#f59e0b">▶ Resume here</button>`;
+    if(isOnline)html+=` &nbsp;<button class="hnbtn" onclick="histRequestRewind()" style="background:#ef444420;border-color:#ef4444;color:#f87171">↩ Request Rewind</button>`;
+  }
+  sb.innerHTML=html;
 }
 function setThinking(v){G.thinking=v;document.getElementById('thinkdots').style.display=v?'inline':'none';updateStatus();}
+
+// ───── HISTORY NAVIGATION ─────────────────────────────────
+function histBack(){
+  if(G.animating||G.thinking)return;
+  if(G.histIdx===null){
+    if(G.snapshots.length<=1)return;
+    G.histIdx=G.snapshots.length-1;
+  }
+  if(G.histIdx>0)G.histIdx--;
+  renderBoard();updateHistory();
+}
+function histFwd(){
+  if(G.animating||G.thinking)return;
+  if(G.histIdx===null)return;
+  if(G.histIdx<G.snapshots.length-1)G.histIdx++;
+  else G.histIdx=null;
+  renderBoard();updateHistory();
+}
+function histJump(idx){
+  if(G.animating||G.thinking)return;
+  if(idx<0||idx>=G.snapshots.length)return;
+  G.histIdx=idx===G.snapshots.length-1?null:idx;
+  renderBoard();updateHistory();
+}
+function histToLive(){
+  if(G.histIdx===null)return;
+  G.histIdx=null;
+  renderBoard();updateHistory();
+}
+function histResume(){
+  if(G.histIdx===null)return;
+  const idx=G.histIdx;
+  const snap=G.snapshots[idx];
+  G.board=[...snap.board];G.turn=snap.turn;G.castling={...snap.castling};G.ep=snap.ep;
+  G.moveCount=idx;
+  G.snapshots=G.snapshots.slice(0,idx+1);
+  G.history=G.history.slice(0,idx);
+  G.histIdx=null;
+  G.mode='normal';G.selected=null;G.animating=false;G.placement=null;G.lastFrom=null;G.lastTo=null;
+  renderBoard();updateStatus();updateHistory();
+  if(!OL.active&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,400);
+}
+function applyRewind(idx){
+  if(idx<0||idx>=G.snapshots.length)return;
+  const snap=G.snapshots[idx];
+  G.board=[...snap.board];G.turn=snap.turn;G.castling={...snap.castling};G.ep=snap.ep;
+  G.moveCount=idx;
+  G.snapshots=G.snapshots.slice(0,idx+1);
+  G.history=G.history.slice(0,idx);
+  G.histIdx=null;G.pendingRewindIdx=null;
+  G.mode='normal';G.selected=null;G.animating=false;G.placement=null;G.lastFrom=null;G.lastTo=null;
+  renderBoard();updateStatus();updateHistory();
+}
+function histRequestRewind(){
+  if(G.histIdx===null)return;
+  sendWs({type:'rewind_request',moveIdx:G.histIdx});
+  const sb=document.getElementById('statusBox');
+  sb.className='place';sb.textContent='Rewind request sent — waiting for opponent…';
+}
+function showRewindRequest(idx){
+  G.pendingRewindIdx=idx;
+  const mdl=document.getElementById('rewindMdl');
+  mdl.innerHTML=`
+    <div class="otitle" style="color:#f87171">↩ Rewind Request</div>
+    <div class="omuted" style="margin-bottom:14px">Opponent wants to rewind to move <b style="color:#f59e0b">${idx}</b>.</div>
+    <button class="obtn pri" onclick="acceptRewind()">✓ Accept</button>
+    <button class="obtn sec" onclick="rejectRewind()">✗ Decline</button>`;
+  document.getElementById('rewindOv').classList.add('show');
+}
+function acceptRewind(){
+  document.getElementById('rewindOv').classList.remove('show');
+  sendWs({type:'rewind_accept',moveIdx:G.pendingRewindIdx});
+  applyRewind(G.pendingRewindIdx);
+}
+function rejectRewind(){
+  document.getElementById('rewindOv').classList.remove('show');
+  sendWs({type:'rewind_reject'});
+  G.pendingRewindIdx=null;
+  updateStatus();
+}
+
+// ───── KEYBOARD NAVIGATION ────────────────────────────────
+document.addEventListener('keydown',e=>{
+  const tag=document.activeElement?.tagName;
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
+  if(e.key==='ArrowLeft'){e.preventDefault();histBack();}
+  else if(e.key==='ArrowRight'){e.preventDefault();histFwd();}
+});
 
 // ───── CLICK HANDLER ──────────────────────────────────────
 function handleClick(si){
@@ -772,7 +942,7 @@ function executeMove(move){
     const res=applyMove(G.board,move,G.castling,G.ep);
     G.board=res.board;G.castling=res.castling;G.ep=res.ep;
     G.lastFrom=move.from;G.lastTo=move.to;
-    G.history.push({notation:note});updateHistory();
+    G.history.push({notation:note,from:move.from,to:move.to});updateHistory();
     if(cap&&hasPutnTake()){
       if(move.placeSq!==undefined){
         // AI super-move: show capture result, pause, then slide piece to chosen square
@@ -816,6 +986,8 @@ function selectPromo(piece){
 }
 function afterTurn(){
   G.moveCount=(G.moveCount||0)+1;
+  // Snapshot current position for history navigation
+  G.snapshots.push({board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep});
   // Send completed move to opponent (online mode)
   if(OL.active&&OL.pendingMove&&!OL.suppress){
     sendWs({type:'move',move:OL.pendingMove,sync:{board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep,moveCount:G.moveCount}});
@@ -971,6 +1143,18 @@ function onWsMessage(e) {
       G.mode = 'normal'; G.selected = null; G.animating = false; G.placement = null;
       renderBoard(); updateStatus();
     }
+  }
+  else if (msg.type === 'rewind_request') {
+    showRewindRequest(msg.moveIdx);
+  }
+  else if (msg.type === 'rewind_accept') {
+    document.getElementById('rewindOv').classList.remove('show');
+    applyRewind(msg.moveIdx);
+  }
+  else if (msg.type === 'rewind_reject') {
+    updateStatus();
+    document.getElementById('statusBox').textContent='Rewind declined by opponent.';
+    setTimeout(()=>updateStatus(),2500);
   }
   else if (msg.type === 'resigned') {
     G.mode = 'gameover';

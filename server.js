@@ -128,6 +128,14 @@ wss.on('connection', (ws) => {
       send(ws, { type: 'sync_ack_please' }); // tell this side to send their state
     }
 
+    // ── Rewind request/accept/reject ──
+    else if (msg.type === 'rewind_request' || msg.type === 'rewind_accept' || msg.type === 'rewind_reject') {
+      const room = rooms.get(ws.room);
+      if (!room) return;
+      const opp = ws.color === 'w' ? room.black : room.white;
+      send(opp, msg); // relay as-is
+    }
+
     // ── Swap colors ──
     else if (msg.type === 'swap_colors') {
       const room = rooms.get(ws.room);
