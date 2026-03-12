@@ -664,31 +664,39 @@ function loadGameFile(evt){
 
 function replayGame(data){
   VARIANT=data.variant||'put-n-take';
-  // setVariant calls newGame() which resets G completely
-  setVariant(VARIANT);
-  G.gameMode='human'; // disable AI triggering during replay
+  setVariant(VARIANT); // resets G via newGame()
+  G.gameMode='human'; // prevent AI triggers
+  G.aiColor=null;     // cancel any queued doAiMove setTimeout
 
+  let skipped=0;
   for(const m of data.moves){
-    // Apply move (handles normal promotion via m.promotion)
-    const res=applyMove(G.board,m,G.castling,G.ep);
-    G.board=res.board;G.castling=res.castling;G.ep=res.ep;
-    G.lastFrom=m.from;G.lastTo=m.to;
-
-    // Apply Put'N Take placement
-    if(m.placeSq!==null&&m.placeSq!==undefined&&m.cap){
-      let pl=m.cap;
-      if(m.placeProm){pl=m.cap[0]+m.placeProm;}
-      else if(pl[1]==='P'){const r=rk(m.placeSq);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
-      G.board[m.placeSq]=pl;G.lastTo=m.placeSq;
+    // Validate move data
+    if(m.from==null||m.to==null){skipped++;continue;}
+    const piece=G.board[m.from];
+    if(!piece){
+      console.warn('Replay: no piece at from='+m.from+', skipping. Board may be out of sync.');
+      skipped++;continue;
     }
+    try{
+      const res=applyMove(G.board,m,G.castling,G.ep);
+      G.board=res.board;G.castling=res.castling;G.ep=res.ep;
+      G.lastFrom=m.from;G.lastTo=m.to;
 
-    G.history.push({...m});
-    G.moveCount=(G.moveCount||0)+1;
-    G.turn=opp(G.turn);
-    G.snapshots.push({board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep});
+      // Apply Put'N Take placement
+      if(m.placeSq!=null&&m.cap){
+        let pl=m.cap;
+        if(m.placeProm){pl=m.cap[0]+m.placeProm;}
+        else if(pl[1]==='P'){const r=rk(m.placeSq);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
+        G.board[m.placeSq]=pl;G.lastTo=m.placeSq;
+      }
+
+      G.history.push({...m});
+      G.moveCount=(G.moveCount||0)+1;
+      G.turn=opp(G.turn);
+      G.snapshots.push({board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep});
+    }catch(e){console.warn('Replay error on move',m,e);skipped++;}
   }
 
-  // Check game-end state
   const lms=humanLegalMoves(G.board,G.turn,G.castling,G.ep);
   if(!lms.length){
     const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';
@@ -698,6 +706,7 @@ function replayGame(data){
       :'Stalemate — Draw';
   }
   renderBoard();updateStatus();updateHistory();
+  if(skipped)setTimeout(()=>alert(`Note: ${skipped} move(s) could not be replayed (possibly saved with an older version).`),100);
 }
 
 function buildSwatches(){
