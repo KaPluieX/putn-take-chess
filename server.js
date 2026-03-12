@@ -79,6 +79,23 @@ wss.on('connection', (ws) => {
       send(opp, { type: 'resigned' });
     }
 
+    // ── New game (sync both boards) ──
+    else if (msg.type === 'new_game') {
+      const room = rooms.get(ws.room);
+      if (!room) return;
+      const opp = ws.color === 'w' ? room.black : room.white;
+      send(opp, { type: 'new_game', variant: msg.variant });
+    }
+
+    // ── Swap colors ──
+    else if (msg.type === 'swap_colors') {
+      const room = rooms.get(ws.room);
+      if (!room) return;
+      // Relay to the OTHER player only (sender already swapped locally)
+      const opp = ws.color === 'w' ? room.black : room.white;
+      send(opp, { type: 'swap_colors' });
+    }
+
     // ── Keepalive ──
     else if (msg.type === 'ping') {
       send(ws, { type: 'pong' });

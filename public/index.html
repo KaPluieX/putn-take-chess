@@ -66,7 +66,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 .sq.sel{background:#7fc97f!important;}
 .sq.dot::after{content:'';position:absolute;width:28%;height:28%;background:rgba(0,0,0,.22);border-radius:50%;}
 .sq.cap-ring{outline:4px solid rgba(0,0,0,.28);outline-offset:-4px;border-radius:2px;}
-.sq.place-sq{background:#6dc0e8!important;cursor:crosshair;}
+.sq.place-sq{background:rgba(70,148,195,0.38)!important;cursor:crosshair;}
 .sq.lf{background:#cdd16f!important;}
 .sq.lt{background:#aab84a!important;}
 
@@ -172,6 +172,8 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
       <option value="4">Hard</option>
     </select>
     <button class="cbtn" onclick="newGame()">New Game</button>
+    <button class="cbtn" id="flipBtn" onclick="flipBoard()" title="Rotate board">⟳ Flip</button>
+    <button class="cbtn" id="swapBtn" style="display:none;border-color:rgba(167,139,250,.4);color:#a78bfa;" onclick="doSwapColors()" title="Swap colors for next game">⇄ Colors</button>
     <button class="cbtn" id="onlineBtn" onclick="openOnline()" style="border-color:rgba(74,222,128,.3);color:#4ade80;">🌐 Online</button>
   </div>
 </header>
@@ -619,6 +621,11 @@ function sqFromPt(cx,cy){
   return(7-row)*8+col;
 }
 
+// ───── BOARD FLIP ─────────────────────────────────────────
+let boardFlipped=false;
+function flipBoard(){boardFlipped=!boardFlipped;renderBoard();buildLabels();}
+function isBoardFlipped(){return boardFlipped;}
+
 // ───── GAME STATE ─────────────────────────────────────────
 let G={};
 function newGame(){
@@ -628,16 +635,19 @@ function newGame(){
      gameMode:OL.active?'human':mv,
      aiColor:OL.active?null:(mv==='ai-w'?'w':mv==='ai-b'?'b':null),
      thinking:false,promoInfo:null,lastFrom:null,lastTo:null,captureAtSq:null,animating:false};
+  const sendNewGame=OL.active&&!OL.suppress;
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();updateStatus();updateHistory();
+  if(sendNewGame)sendWs({type:'new_game',variant:VARIANT});
   if(G.gameMode==='ai-w')setTimeout(doAiMove,400);
 }
 
 // ───── RENDER ─────────────────────────────────────────────
 function renderBoard(){
   const be=document.getElementById('board');be.innerHTML='';
+  const flip=isBoardFlipped();
   for(let v=0;v<64;v++){
-    const r8=7-Math.floor(v/8),f8=v%8,si=sq(r8,f8);
+    const r8=flip?Math.floor(v/8):7-Math.floor(v/8),f8=flip?7-v%8:v%8,si=sq(r8,f8);
     const isL=(r8+f8)%2!==0;
     const div=document.createElement('div');
     div.className='sq '+(isL?'l':'d');
@@ -792,7 +802,15 @@ function selectPromo(piece){
 function afterTurn(){
   // Send completed move to opponent (online mode)
   if(OL.active&&OL.pendingMove&&!OL.suppress){
-    sendWs({type:'move',move:OL.pendingMove});
+    sendWs({type:'move',move:OL.pendingMove,sync:{board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep}});
+  }
+  // Apply sync state from opponent's move to correct any desync
+  if(OL.syncState){
+    const s=OL.syncState;OL.syncState=null;
+    if(s.board.some((p,i)=>p!==G.board[i])||s.turn!==G.turn){
+      console.warn('Desync corrected');
+      G.board=s.board;G.turn=s.turn;G.castling=s.castling;G.ep=s.ep;
+    }
   }
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();
@@ -814,14 +832,15 @@ function doAiMove(){
 
 // ───── LABELS & INIT ──────────────────────────────────────
 function buildLabels(){
-  document.getElementById('rlabels').innerHTML=[8,7,6,5,4,3,2,1].map(n=>`<div class="rlabel">${n}</div>`).join('');
-  document.getElementById('flabels').innerHTML='abcdefgh'.split('').map(c=>`<div class="flabel">${c}</div>`).join('');
-  function syncSizes(){
-    const sz=sqSz();
-    document.querySelectorAll('.rlabel').forEach(el=>el.style.height=sz+'px');
-  }
-  syncSizes();window.addEventListener('resize',syncSizes);
+  const flip=isBoardFlipped();
+  const ranks=flip?[1,2,3,4,5,6,7,8]:[8,7,6,5,4,3,2,1];
+  const files=flip?'hgfedcba':'abcdefgh';
+  document.getElementById('rlabels').innerHTML=ranks.map(n=>`<div class="rlabel">${n}</div>`).join('');
+  document.getElementById('flabels').innerHTML=files.split('').map(c=>`<div class="flabel">${c}</div>`).join('');
+  const syncSizes=()=>{const sz=sqSz();document.querySelectorAll('.rlabel').forEach(el=>el.style.height=sz+'px');};
+  syncSizes();
 }
+window.addEventListener('resize',()=>{const sz=sqSz();document.querySelectorAll('.rlabel').forEach(el=>el.style.height=sz+'px');});
 // ───── ONLINE MODE ────────────────────────────────────────
 let OL = {
   active: false,     // in an online game
@@ -830,6 +849,8 @@ let OL = {
   room: null,        // room code
   pendingMove: null, // accumulated move (may gain placeSq after capture)
   suppress: false,   // true while applying opponent's move (don't re-send)
+  syncState: null,   // board state from last received move (desync correction)
+  isCreator: false,  // true for the player who created the room (was white initially)
 };
 
 function wsUrl() {
@@ -859,7 +880,21 @@ function onWsMessage(e) {
   }
   else if (msg.type === 'move') {
     OL.suppress = true;
+    OL.syncState = msg.sync || null; // store for desync correction in afterTurn
     executeMove(msg.move);
+  }
+  else if (msg.type === 'new_game') {
+    OL.suppress = true;
+    if(msg.variant && msg.variant !== VARIANT) setVariant(msg.variant);
+    else newGame();
+  }
+  else if (msg.type === 'swap_colors') {
+    // Both players swap, creator re-sends new_game to sync
+    OL.color = OL.color === 'w' ? 'b' : 'w';
+    boardFlipped = (OL.color === 'b');
+    OL.suppress = true;
+    newGame();
+    buildLabels();
   }
   else if (msg.type === 'resigned') {
     G.mode = 'gameover';
@@ -878,14 +913,27 @@ function onWsMessage(e) {
 
 function startOnlineGame() {
   OL.active = true;
+  boardFlipped = (OL.color === 'b'); // auto-flip for Black
+  buildLabels();
+  OL.suppress = true; // newGame called here shouldn't send sync
   newGame();
-  // Flip board if playing as black
-  document.getElementById('statusBox').textContent =
-    `You are ${OL.color === 'w' ? 'White ♔' : 'Black ♚'} — Room: ${OL.room}`;
+  document.getElementById('swapBtn').style.display = '';
+}
+
+function doSwapColors() {
+  // Swap locally and tell server to relay swap to both
+  OL.color = OL.color === 'w' ? 'b' : 'w';
+  boardFlipped = (OL.color === 'b');
+  sendWs({type:'swap_colors'});
+  OL.suppress = true;
+  newGame();
+  buildLabels();
 }
 
 function endOnlineGame() {
-  OL.active = false; OL.color = null; OL.room = null; OL.pendingMove = null;
+  OL.active = false; OL.color = null; OL.room = null; OL.pendingMove = null; OL.syncState = null;
+  boardFlipped = false; buildLabels();
+  document.getElementById('swapBtn').style.display = 'none';
   if (OL.ws) { OL.ws.close(); OL.ws = null; }
 }
 
