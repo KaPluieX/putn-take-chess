@@ -1185,11 +1185,31 @@ function afterTurn(){
   updateStatus();
   if(!OL.active&&G.mode!=='gameover'&&G.mode!=='placement'&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,160);
 }
+let aiWorker=null;
+try{aiWorker=new Worker('worker.js');}catch(e){console.warn('Worker failed, falling back to main thread',e);}
+let aiJobId=0;
+
 function doAiMove(){
   if((G.mode!=='normal'&&G.mode!=='selected')||G.turn!==G.aiColor)return;
   setThinking(true);
+  const depth=parseInt(document.getElementById('diffSelect').value);
+  const thinkMs=getThinkMs()===Infinity?0:getThinkMs();
+  const jobId=++aiJobId;
+
+  if(aiWorker){
+    aiWorker.onmessage=(e)=>{
+      if(e.data.jobId!==aiJobId)return; // stale result from cancelled job
+      setThinking(false);
+      const move=e.data.move;
+      if(!move){G.mode='gameover';G.gameOverMsg='Stalemate — Draw';updateStatus();return;}
+      if(G.mode!=='normal'&&G.mode!=='selected')return; // game state changed while thinking
+      executeMove(move);
+    };
+    aiWorker.postMessage({board:[...G.board],color:G.aiColor,castling:{...G.castling},ep:G.ep,depth,thinkMs,variant:VARIANT,jobId});
+    return;
+  }
+  // Fallback: main thread (may block UI)
   setTimeout(()=>{
-    const depth=parseInt(document.getElementById('diffSelect').value);
     const move=getBestMove(G.board,G.aiColor,G.castling,G.ep,depth);
     setThinking(false);
     if(move)executeMove(move);else{G.mode='gameover';G.gameOverMsg='Game over';updateStatus();}
