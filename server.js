@@ -128,6 +128,15 @@ wss.on('connection', (ws) => {
       send(ws, { type: 'sync_ack_please' }); // tell this side to send their state
     }
 
+    // ── Chat ──
+    else if (msg.type === 'chat') {
+      const room = rooms.get(ws.room);
+      if (!room) return;
+      const opp = ws.color === 'w' ? room.black : room.white;
+      const text = (msg.text || '').slice(0, 200); // cap length server-side too
+      send(opp, { type: 'chat', text, name: msg.name || 'Anonymous', color: ws.color });
+    }
+
     // ── Rewind request/accept/reject ──
     else if (msg.type === 'rewind_request' || msg.type === 'rewind_accept' || msg.type === 'rewind_reject') {
       const room = rooms.get(ws.room);

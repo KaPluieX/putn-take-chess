@@ -149,6 +149,24 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 #rewindMdl{background:#16213e;border:1px solid rgba(245,158,11,.4);border-radius:14px;padding:24px 28px;max-width:320px;width:90vw;text-align:center;}
 .rules{font-size:.72rem;color:rgba(255,255,255,.4);line-height:1.6;}
 .rules b{color:#f59e0b;}
+/* Chat */
+#chatBox{display:none;width:min(560px,calc(100vw - 44px));background:#16213e;border:1px solid rgba(255,255,255,.07);border-radius:11px;padding:11px 13px;margin-top:8px;}
+#chatBox.show{display:block;}
+.chat-title{font-size:.63rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,.3);margin-bottom:7px;display:flex;align-items:center;gap:6px;}
+.chat-ping{display:none;background:#ef4444;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:10px;font-weight:700;}
+.chat-ping.show{display:inline-block;}
+#chatLog{height:110px;overflow-y:auto;display:flex;flex-direction:column;gap:3px;margin-bottom:8px;padding-right:2px;}
+#chatLog::-webkit-scrollbar{width:3px;}
+#chatLog::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:3px;}
+.cmsg{font-size:.76rem;line-height:1.5;word-break:break-word;}
+.cmsg .cname{font-weight:600;margin-right:4px;}
+.cname-w{color:#fde68a;}.cname-b{color:#93c5fd;}.cname-sys{color:#6b7280;font-style:italic;}
+.cmsg-mine{opacity:.8;}
+#chatRow{display:flex;gap:6px;}
+#chatInput{flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#e8e8f0;padding:6px 10px;font-size:.8rem;font-family:'Inter',sans-serif;outline:none;}
+#chatInput:focus{border-color:rgba(74,222,128,.35);}
+#chatSend{padding:6px 12px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);border-radius:7px;color:#4ade80;font-size:.76rem;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
+#chatSend:hover{background:rgba(74,222,128,.2);}
 
 /* Online overlay */
 #onlineOv{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);align-items:center;justify-content:center;z-index:200;}
@@ -243,6 +261,16 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     <div id="nameBar" style="display:none;width:min(560px,calc(100vw - 44px));display:none;margin-top:6px;display:flex;justify-content:space-between;font-size:.78rem;color:#9ca3af;padding:0 2px;">
       <span id="nameBlack">⬛ -</span>
       <span id="nameWhite">⬜ -</span>
+    </div>
+    <div id="chatBox">
+      <div class="chat-title">💬 Chat <span class="chat-ping" id="chatPing">NEW</span></div>
+      <div id="chatLog"></div>
+      <div id="chatRow">
+        <input id="chatInput" placeholder="Say something…" maxlength="200"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+          oninput="document.getElementById('chatPing').classList.remove('show')">
+        <button id="chatSend" onclick="sendChat()">Send</button>
+      </div>
     </div>
   </div>
 
@@ -399,7 +427,7 @@ function rhinoPinExists(board,color){
   for(let i=0;i<64;i++){
     if(board[i]!==color+'Q')continue;
     const tb=[...board];tb[i]=null;
-    if(!isInCheck(tb,color))continue; // removing this Rhino doesn't expose king — not a pin
+    if(!isInCheck(tb,color))continue; // removing this Rhino doesn't expose king - not a pin
     // Is it an enemy Rhino causing the pin specifically?
     for(let j=0;j<64;j++){
       if(tb[j]!==en+'Q')continue;
@@ -598,7 +626,7 @@ function setTheme(t){
   document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('active',s.dataset.t===t));
 }
 const VARIANT_RULES={
-  'vanilla':   '<b>Standard chess.</b> No special rules — castling, en passant, promotion, and checkmate as normal. Just pure chess.',
+  'vanilla':   '<b>Standard chess.</b> No special rules - castling, en passant, promotion, and checkmate as normal. Just pure chess.',
   'putn-take': '<b>Capture a piece?</b> You must place it back on any empty square - your choice where.<br><br><b>Pawn on promo rank</b> → promote (you pick the piece).<br><br><b>In check?</b> Capture anything and place the piece to block. Win by <b>checkmate</b>.',
   'rhino':     '<b>The Rhino 🦏</b> replaces the queen. It navigates through chained queen slides before capturing - attacks any square reachable through empty space.<br><br><b>Rhino cannot capture Rhino.</b> Win by <b>checkmate</b>. Standard chess otherwise.',
   'rhino-putn':'<b>Rhino 🦏 + Put\'N Take</b> combined. Rhino queen moves anywhere reachable through empty squares. <b>Rhino cannot capture Rhino.</b><br><br>Capture any other piece → place it back anywhere. <b>Promote to Rhino</b> if you want. Win by <b>checkmate</b>.',
@@ -702,8 +730,8 @@ function replayGame(data){
     const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';
     G.mode='gameover';
     G.gameOverMsg=isInCheck(G.board,G.turn)
-      ?(opp(G.turn)==='w'?'White':'Black')+' wins — '+mateMsg
-      :'Stalemate — Draw';
+      ?(opp(G.turn)==='w'?'White':'Black')+' wins - '+mateMsg
+      :'Stalemate - Draw';
   }
   renderBoard();updateStatus();updateHistory();
   if(skipped)setTimeout(()=>alert(`Note: ${skipped} move(s) could not be replayed (possibly saved with an older version).`),100);
@@ -894,7 +922,7 @@ function updateStatus(){
   }
   if(G.thinking){const tms=getThinkMs();const tlabel=tms===Infinity?'no limit':tms>=60000?tms/60000+'m':tms/1000+'s';el.className='think';el.textContent=`Engine thinking… (${tlabel})`;return;}
   if(isInCheck(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+(hasRhino()?' 🦏 Rhino Check!':' in Check!');return;}
-  if(hasRhino()&&rhinoPinExists(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+' — ⚠️ Rhino Pinned!';return;}
+  if(hasRhino()&&rhinoPinExists(G.board,G.turn)){el.className='check';el.textContent=(G.turn==='w'?'White':'Black')+' - ⚠️ Rhino Pinned!';return;}
   el.textContent=(G.turn==='w'?'White':'Black')+' to move';
 }
 function updateHistory(){
@@ -1003,7 +1031,7 @@ function histRequestRewind(){
   if(G.histIdx===null)return;
   sendWs({type:'rewind_request',moveIdx:G.histIdx});
   const sb=document.getElementById('statusBox');
-  sb.className='place';sb.textContent='Rewind request sent — waiting for opponent…';
+  sb.className='place';sb.textContent='Rewind request sent - waiting for opponent…';
 }
 function showRewindRequest(idx){
   G.pendingRewindIdx=idx;
@@ -1153,7 +1181,7 @@ function afterTurn(){
   OL.pendingMove=null; OL.suppress=false;
   renderBoard();
   const ms=humanLegalMoves(G.board,G.turn,G.castling,G.ep);
-  if(!ms.length){const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins — '+mateMsg:'Stalemate — Draw';}
+  if(!ms.length){const mateMsg=hasRhino()?'🦏 Rhino Checkmate!':'Checkmate! ♟';G.mode='gameover';G.gameOverMsg=isInCheck(G.board,G.turn)?(opp(G.turn)==='w'?'White':'Black')+' wins - '+mateMsg:'Stalemate - Draw';}
   updateStatus();
   if(!OL.active&&G.mode!=='gameover'&&G.mode!=='placement'&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,160);
 }
@@ -1270,7 +1298,7 @@ function onWsMessage(e) {
     updateNameBar();
   }
   else if (msg.type === 'sync_ack_please') {
-    // Opponent used the sync button — send them our state
+    // Opponent used the sync button - send them our state
     sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep, moveCount: G.moveCount||0 } });
   }
   else if (msg.type === 'rejoined') {
@@ -1280,7 +1308,12 @@ function onWsMessage(e) {
     // Send current board state so opponent can resync
     sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
   }
+  else if (msg.type === 'chat') {
+    const oppName = msg.name || (OL.color==='w'?'Black':'White');
+    appendChat(opp(OL.color), oppName, msg.text, false, false);
+  }
   else if (msg.type === 'opponent_rejoined') {
+    appendChat(null,null,'Opponent reconnected.',false,true);
     document.getElementById('statusBox').textContent = 'Opponent reconnected - syncing…';
     sendWs({ type: 'sync_state', state: { board: [...G.board], turn: G.turn, castling: {...G.castling}, ep: G.ep } });
   }
@@ -1312,12 +1345,48 @@ function onWsMessage(e) {
     updateStatus(); renderBoard();
   }
   else if (msg.type === 'opponent_disconnected') {
-    // Don't end game - they may reconnect within 2hr room lifetime
-    document.getElementById('statusBox').textContent = 'Opponent disconnected - waiting for reconnect…';
+    appendChat(null,null,'Opponent disconnected — waiting for reconnect…',false,true);
+    document.getElementById('statusBox').textContent = 'Opponent disconnected — waiting for reconnect…';
   }
   else if (msg.type === 'error') {
     renderOnlineModal('lobby', msg.msg);
   }
+}
+
+// ───── CHAT ───────────────────────────────────────────────
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function appendChat(color,name,text,isMine,isSystem){
+  const log=document.getElementById('chatLog');
+  const div=document.createElement('div');
+  div.className='cmsg'+(isMine?' cmsg-mine':'');
+  if(isSystem){
+    div.innerHTML=`<span class="cname cname-sys">${escHtml(text)}</span>`;
+  } else {
+    const nc=color==='w'?'cname-w':'cname-b';
+    div.innerHTML=`<span class="cname ${nc}">${escHtml(name)}:</span>${escHtml(text)}`;
+  }
+  log.appendChild(div);
+  // Auto-scroll only if already near bottom
+  if(log.scrollHeight-log.scrollTop-log.clientHeight<60)log.scrollTop=log.scrollHeight;
+  // Ping badge if input isn't focused and message is from opponent
+  if(!isMine&&document.activeElement!==document.getElementById('chatInput')){
+    document.getElementById('chatPing').classList.add('show');
+  }
+}
+function sendChat(){
+  const inp=document.getElementById('chatInput');
+  const text=inp.value.trim();
+  if(!text||!OL.active)return;
+  const name=OL.name||'Anonymous';
+  sendWs({type:'chat',text,name});
+  appendChat(OL.color,name,text,true,false);
+  inp.value='';
+}
+function showChat(){document.getElementById('chatBox').classList.add('show');}
+function hideChat(){
+  document.getElementById('chatBox').classList.remove('show');
+  document.getElementById('chatLog').innerHTML='';
+  document.getElementById('chatPing').classList.remove('show');
 }
 
 function updateNameBar() {
@@ -1341,6 +1410,8 @@ function startOnlineGame() {
   document.getElementById('swapBtn').style.display = '';
   document.getElementById('syncBtn').style.display = '';
   updateNameBar();
+  showChat();
+  appendChat(null,null,`Game started - you are ${OL.color==='w'?'⬜ White':'⬛ Black'}`,false,true);
 }
 
 function doSwapColors() {
@@ -1360,6 +1431,7 @@ function endOnlineGame() {
   document.getElementById('swapBtn').style.display = 'none';
   document.getElementById('syncBtn').style.display = 'none';
   document.getElementById('nameBar').style.display = 'none';
+  hideChat();
   if (OL.ws) { OL.ws.close(); OL.ws = null; }
 }
 
@@ -1385,7 +1457,7 @@ function renderOnlineModal(screen, errMsg) {
       <input class="oinput" id="nameInput" placeholder="Your name (optional)" maxlength="20"
         value="${OL.name||''}" oninput="OL.name=this.value.trim()" style="margin-bottom:10px;">
       <button class="obtn pri" onclick="doCreateGame()">Create New Game</button>
-      <div class="odivider">— or join existing —</div>
+      <div class="odivider">- or join existing -</div>
       <input class="oinput" id="joinInput" placeholder="ENTER ROOM CODE" maxlength="5"
         oninput="this.value=this.value.toUpperCase()"
         onkeydown="if(event.key==='Enter')doJoinGame()">
