@@ -13,6 +13,7 @@ const PST={
 const RHINO_VAL=1500;
 
 let VARIANT='putn-take';
+let SETTINGS={tripleMove:false};
 function hasRhino(){return VARIANT==='rhino'||VARIANT==='rhino-putn';}
 function hasPutnTake(){return VARIANT==='putn-take'||VARIANT==='rhino-putn';}
 
@@ -61,18 +62,30 @@ function pseudoMoves(board,color,castling,ep){
     const p=board[from];if(!p||p[0]!==color)continue;
     const t=p[1],ri=rk(from),fi=fl(from);
     if(t==='P'){
-      const d=color==='w'?1:-1,sr=color==='w'?1:6,pr=color==='w'?7:0,fwd=from+d*8;
+      const d=color==='w'?1:-1,sr=color==='w'?1:6,pr=color==='w'?7:0,br=color==='w'?0:7,fwd=from+d*8;
       if(fwd>=0&&fwd<64&&!board[fwd]){
         if(rk(fwd)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to:fwd,promotion:pp});}
-        else{moves.push({from,to:fwd});if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});}
+        else{
+          moves.push({from,to:fwd});
+          if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
+          if(SETTINGS.tripleMove&&hasPutnTake()&&ri===br){
+            const s2=from+d*16,s3=from+d*24;
+            if(s3>=0&&s3<64&&!board[s2]&&!board[s3])moves.push({from,to:s3,tp:true});
+          }
+        }
       }
+      const epSqs=ep===null?[]:(typeof ep==='object'&&ep.squares?ep.squares:[ep]);
+      const epPSq=ep!==null&&typeof ep==='object'&&ep.pawnSq!=null?ep.pawnSq:null;
       for(const df of[-1,1]){
         const tf=fi+df;if(tf<0||tf>7)continue;
         const to=from+d*8+df;if(to<0||to>63)continue;
         if(board[to]&&board[to][0]===en){
           if(rk(to)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to,cap:board[to],promotion:pp});}
           else moves.push({from,to,cap:board[to]});
-        } else if(ep!==null&&to===ep)moves.push({from,to,cap:color==='w'?'bP':'wP',ep:true});
+        } else if(epSqs.includes(to)){
+          const remSq=epPSq!==null?epPSq:to+(color==='w'?-8:8);
+          moves.push({from,to,cap:color==='w'?'bP':'wP',ep:true,epRemoveSq:remSq});
+        }
       }
     } else if(t==='N'){
       for(const[dr,df]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
@@ -117,8 +130,9 @@ function applyMove(board,move,castling,ep){
   const b=[...board],nc={...castling};let nep=null;
   const p=b[move.from],c=p[0],t=p[1];
   b[move.to]=move.promotion?c+move.promotion:p;b[move.from]=null;
-  if(move.ep)b[move.to+(c==='w'?-8:8)]=null;
+  if(move.ep)b[move.epRemoveSq!==undefined?move.epRemoveSq:move.to+(c==='w'?-8:8)]=null;
   if(move.dp)nep=c==='w'?move.from+8:move.from-8;
+  if(move.tp)nep={squares:[c==='w'?move.from+8:move.from-8,c==='w'?move.from+16:move.from-16],pawnSq:move.to};
   if(move.castle==='K'){c==='w'?(b[5]='wR',b[7]=null):(b[61]='bR',b[63]=null);}
   if(move.castle==='Q'){c==='w'?(b[3]='wR',b[0]=null):(b[59]='bR',b[56]=null);}
   if(t==='K'){c==='w'?(nc.wK=false,nc.wQ=false):(nc.bK=false,nc.bQ=false);}
@@ -241,8 +255,9 @@ function getBestMove(board,color,castling,ep,depth){
 
 // ── Message handler ────────────────────────────────────────
 self.onmessage=function(e){
-  const{board,color,castling,ep,depth,thinkMs,variant,jobId}=e.data;
+  const{board,color,castling,ep,depth,thinkMs,variant,settings,jobId}=e.data;
   VARIANT=variant;
+  if(settings)SETTINGS={...SETTINGS,...settings};
   const ms=thinkMs===0?Infinity:thinkMs;
   gDeadline=ms===Infinity?Infinity:Date.now()+ms;
   gTimeUp=false;

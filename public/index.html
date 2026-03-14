@@ -168,6 +168,23 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 #chatSend{padding:6px 12px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.3);border-radius:7px;color:#4ade80;font-size:.76rem;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;}
 #chatSend:hover{background:rgba(74,222,128,.2);}
 
+/* Settings overlay */
+#settingsOv{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);align-items:center;justify-content:center;z-index:200;}
+#settingsOv.show{display:flex;}
+#settingsMdl{background:#16213e;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:26px 28px;min-width:290px;max-width:360px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.7);}
+.stitle{font-size:1rem;font-weight:700;color:#a78bfa;margin-bottom:16px;}
+.srow{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.06);}
+.srow:last-of-type{border-bottom:none;margin-bottom:10px;}
+.stoggle{position:relative;flex-shrink:0;width:36px;height:20px;margin-top:2px;}
+.stoggle input{opacity:0;width:0;height:0;}
+.stoggle .slider{position:absolute;inset:0;background:rgba(255,255,255,.12);border-radius:20px;cursor:pointer;transition:.2s;}
+.stoggle .slider:before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#aaa;border-radius:50%;transition:.2s;}
+.stoggle input:checked+.slider{background:#a78bfa;}
+.stoggle input:checked+.slider:before{transform:translateX(16px);background:#fff;}
+.slabel{flex:1;}
+.slabel b{display:block;font-size:.82rem;color:#e0e0f0;margin-bottom:3px;}
+.slabel small{font-size:.72rem;color:rgba(255,255,255,.4);line-height:1.5;}
+.sbadge{display:inline-block;font-size:.58rem;padding:1px 5px;border-radius:8px;background:rgba(167,139,250,.2);color:#a78bfa;border:1px solid rgba(167,139,250,.3);margin-left:5px;vertical-align:middle;}
 /* Online overlay */
 #onlineOv{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);align-items:center;justify-content:center;z-index:200;}
 #onlineOv.show{display:flex;}
@@ -196,7 +213,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.7</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.8</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -231,6 +248,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     <button class="cbtn" id="swapBtn" style="display:none;border-color:rgba(167,139,250,.4);color:#a78bfa;" onclick="doSwapColors()" title="Swap colors for next game">⇄ Colors</button>
     <button class="cbtn" id="syncBtn" style="display:none;border-color:rgba(251,191,36,.4);color:#fbbf24;" onclick="doSyncRequest()" title="Re-sync board with opponent">↺ Sync</button>
     <button class="cbtn" id="onlineBtn" onclick="openOnline()" style="border-color:rgba(74,222,128,.3);color:#4ade80;">🌐 Online</button>
+    <button class="cbtn" id="settingsBtn" onclick="openSettings()" style="border-color:rgba(167,139,250,.35);color:#a78bfa;" title="Rule settings">⚙️</button>
   </div>
 </header>
 
@@ -240,6 +258,20 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </div>
 <div id="onlineOv">
   <div id="onlineMdl"></div>
+</div>
+
+<div id="settingsOv" onclick="if(event.target===this)closeSettings()">
+  <div id="settingsMdl">
+    <div class="stitle">⚙️ Rule Settings</div>
+    <div class="srow">
+      <label class="stoggle"><input type="checkbox" id="tripleMoveCb" onchange="applySettings()"><span class="slider"></span></label>
+      <div class="slabel">
+        <b>Back-rank pawn triple move <span class="sbadge">P'N'T</span></b>
+        <small>A pawn placed on its home rank (rank 1 for White, rank 8 for Black) via Put'N Take can advance 1, 2, <em>or 3</em> squares on its first move. En passant applies to both skipped squares. Only active in Put'N Take variants.</small>
+      </div>
+    </div>
+    <button class="obtn sec" onclick="closeSettings()">Done</button>
+  </div>
 </div>
 
 <div class="main">
@@ -336,18 +368,32 @@ function pseudoMoves(board,color,castling,ep){
     const p=board[from];if(!p||p[0]!==color)continue;
     const t=p[1],ri=rk(from),fi=fl(from);
     if(t==='P'){
-      const d=color==='w'?1:-1,sr=color==='w'?1:6,pr=color==='w'?7:0,fwd=from+d*8;
+      const d=color==='w'?1:-1,sr=color==='w'?1:6,pr=color==='w'?7:0,br=color==='w'?0:7,fwd=from+d*8;
       if(fwd>=0&&fwd<64&&!board[fwd]){
         if(rk(fwd)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to:fwd,promotion:pp});}
-        else{moves.push({from,to:fwd});if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});}
+        else{
+          moves.push({from,to:fwd});
+          if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
+          // Triple push: pawn placed on back rank via P'N'T can advance 3 if all clear
+          if(SETTINGS.tripleMove&&hasPutnTake()&&ri===br){
+            const s2=from+d*16,s3=from+d*24;
+            if(s3>=0&&s3<64&&!board[s2]&&!board[s3])moves.push({from,to:s3,tp:true});
+          }
+        }
       }
+      // ep can be a plain square (double push) or {squares:[],pawnSq:n} (triple push)
+      const epSqs=ep===null?[]:(typeof ep==='object'&&ep.squares?ep.squares:[ep]);
+      const epPSq=ep!==null&&typeof ep==='object'&&ep.pawnSq!=null?ep.pawnSq:null;
       for(const df of[-1,1]){
         const tf=fi+df;if(tf<0||tf>7)continue;
         const to=from+d*8+df;if(to<0||to>63)continue;
         if(board[to]&&board[to][0]===en){
           if(rk(to)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to,cap:board[to],promotion:pp});}
           else moves.push({from,to,cap:board[to]});
-        } else if(ep!==null&&to===ep)moves.push({from,to,cap:color==='w'?'bP':'wP',ep:true});
+        } else if(epSqs.includes(to)){
+          const remSq=epPSq!==null?epPSq:to+(color==='w'?-8:8);
+          moves.push({from,to,cap:color==='w'?'bP':'wP',ep:true,epRemoveSq:remSq});
+        }
       }
     } else if(t==='N'){
       for(const[dr,df]of[[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]){
@@ -393,8 +439,9 @@ function applyMove(board,move,castling,ep){
   const b=[...board],nc={...castling};let nep=null;
   const p=b[move.from],c=p[0],t=p[1];
   b[move.to]=move.promotion?c+move.promotion:p;b[move.from]=null;
-  if(move.ep)b[move.to+(c==='w'?-8:8)]=null;
+  if(move.ep)b[move.epRemoveSq!==undefined?move.epRemoveSq:move.to+(c==='w'?-8:8)]=null;
   if(move.dp)nep=c==='w'?move.from+8:move.from-8;
+  if(move.tp)nep={squares:[c==='w'?move.from+8:move.from-8,c==='w'?move.from+16:move.from-16],pawnSq:move.to};
   if(move.castle==='K'){c==='w'?(b[5]='wR',b[7]=null):(b[61]='bR',b[63]=null);}
   if(move.castle==='Q'){c==='w'?(b[3]='wR',b[0]=null):(b[59]='bR',b[56]=null);}
   if(t==='K'){c==='w'?(nc.wK=false,nc.wQ=false):(nc.bK=false,nc.bQ=false);}
@@ -419,6 +466,16 @@ function isAttacked(board,square,byColor){
 }
 // ───── VARIANT ────────────────────────────────────────────
 let VARIANT='putn-take'; // 'putn-take' | 'rhino' | 'rhino-putn'
+let SETTINGS={tripleMove:false};
+
+function openSettings(){document.getElementById('settingsOv').classList.add('show');}
+function closeSettings(){document.getElementById('settingsOv').classList.remove('show');}
+function applySettings(){
+  SETTINGS.tripleMove=document.getElementById('tripleMoveCb').checked;
+  // Triple move only makes sense in P'N'T variants — show badge state
+  document.getElementById('tripleMoveCb').closest('.srow').style.opacity=
+    hasPutnTake()?'1':'0.4';
+}
 function hasRhino(){return VARIANT==='rhino'||VARIANT==='rhino-putn';}
 function hasPutnTake(){return VARIANT==='putn-take'||VARIANT==='rhino-putn';}
 function rhinoPinExists(board,color){
@@ -1217,7 +1274,7 @@ function doAiMove(){
       if(G.mode!=='normal'&&G.mode!=='selected')return; // game state changed while thinking
       executeMove(move);
     };
-    aiWorker.postMessage({board:[...G.board],color:G.aiColor,castling:{...G.castling},ep:G.ep,depth,thinkMs,variant:VARIANT,jobId});
+    aiWorker.postMessage({board:[...G.board],color:G.aiColor,castling:{...G.castling},ep:G.ep,depth,thinkMs,variant:VARIANT,settings:{...SETTINGS},jobId});
     return;
   }
   // Fallback: main thread (may block UI)
