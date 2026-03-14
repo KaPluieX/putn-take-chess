@@ -179,6 +179,18 @@ function evaluate(board){
     const matVal=(hasRhino()&&t==='Q')?RHINO_VAL:PV[t];
     s+=c==='w'?matVal+(PST[t]?PST[t][pstIdx]:0)*3:-(matVal+(PST[t]?PST[t][pstIdx]:0)*3);
   }
+  // In Put'N Take, a promoted queen NEVER leaves the board — permanent material.
+  // A pawn near promotion is worth far more than standard PST suggests.
+  // Bonus: 1 away = 700pts, 2 away = 350pts (scaled like a certain queen gain).
+  if(hasPutnTake()){
+    for(let i=0;i<64;i++){
+      const p=board[i];if(!p||p[1]!=='P')continue;
+      const c=p[0],rank=rk(i);
+      const distToPromo=c==='w'?7-rank:rank;
+      const bonus=distToPromo===1?700:distToPromo===2?350:0;
+      if(bonus)s+=c==='w'?bonus:-bonus;
+    }
+  }
   return s;
 }
 
