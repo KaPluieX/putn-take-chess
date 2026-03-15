@@ -213,7 +213,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.10</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.11</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -544,13 +544,19 @@ function legalMoves(board,color,castling,ep){
 
 function canPlaceResolveCheck(board,move,color,castling,ep){
   const res=applyMove(board,move,castling,ep);
-  if(!isInCheck(res.board,color))return true;
-  if(!hasPutnTake())return false; // no placement in pure Rhino Chess
+  if(!isInCheck(res.board,color))return hasPutnTake()?hasValidPlacement(res.board,move.cap,color):true;
+  if(!hasPutnTake())return false;
+  return hasValidPlacement(res.board,move.cap,color);
+}
+function hasValidPlacement(resBoard,cap,color){
+  // In P'N'T, a capture is only truly legal if at least one placement square exists
+  // that doesn't leave the capturer in check (captured piece keeps its original color).
   for(let s=0;s<64;s++){
-    if(res.board[s])continue;
-    const tb=[...res.board];let placed=move.cap;
-    if(placed[1]==='P'){const r=rk(s);if((placed[0]==='w'&&r===7)||(placed[0]==='b'&&r===0))placed=placed[0]+'Q';}
-    tb[s]=placed;if(!isInCheck(tb,color))return true;
+    if(resBoard[s])continue;
+    let pl=cap;
+    if(pl[1]==='P'){const r=rk(s);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
+    const tb=[...resBoard];tb[s]=pl;
+    if(!isInCheck(tb,color))return true;
   }
   return false;
 }
@@ -559,7 +565,11 @@ function humanLegalMoves(board,color,castling,ep){
     if(m.castle==='K'){if(isAttacked(board,m.from,opp(color))||isAttacked(board,m.from+1,opp(color)))return false;}
     if(m.castle==='Q'){if(isAttacked(board,m.from,opp(color))||isAttacked(board,m.from-1,opp(color)))return false;}
     const res=applyMove(board,m,castling,ep);
-    if(!isInCheck(res.board,color))return true;
+    if(!isInCheck(res.board,color)){
+      // For P'N'T captures: also require at least one valid placement (else the move can't be completed)
+      if(hasPutnTake()&&m.cap)return hasValidPlacement(res.board,m.cap,color);
+      return true;
+    }
     if(!m.cap)return false;
     return canPlaceResolveCheck(board,m,color,castling,ep);
   });
