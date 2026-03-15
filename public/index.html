@@ -213,7 +213,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.8</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.9</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -611,7 +611,15 @@ function genSuperMoves(board,color,castling,ep){
     if(m.cap){
       const{board:nb}=applyMove(board,m,castling,ep);
       let added=false;
-      for(let s=0;s<64;s++){if(!nb[s]){res.push({...m,placeSq:s});added=true;}}
+      for(let s=0;s<64;s++){
+        if(nb[s])continue;
+        // Placing the captured piece (enemy color) on sq must not leave OUR king in check
+        let pl=m.cap;
+        if(pl[1]==='P'){const r=rk(s);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
+        const tb=[...nb];tb[s]=pl;
+        if(isInCheck(tb,color))continue; // placement would self-check — skip
+        res.push({...m,placeSq:s});added=true;
+      }
       if(!added)res.push(m);
     } else res.push(m);
   }

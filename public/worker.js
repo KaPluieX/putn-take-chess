@@ -168,7 +168,14 @@ function genSuperMoves(board,color,castling,ep){
     if(m.cap){
       const{board:nb}=applyMove(board,m,castling,ep);
       let added=false;
-      for(let s=0;s<64;s++){if(!nb[s]){res.push({...m,placeSq:s});added=true;}}
+      for(let s=0;s<64;s++){
+        if(nb[s])continue;
+        let pl=m.cap;
+        if(pl[1]==='P'){const r=rk(s);if((pl[0]==='w'&&r===7)||(pl[0]==='b'&&r===0))pl=pl[0]+'Q';}
+        const tb=[...nb];tb[s]=pl;
+        if(isInCheck(tb,color))continue;
+        res.push({...m,placeSq:s});added=true;
+      }
       if(!added)res.push(m);
     } else res.push(m);
   }
