@@ -213,7 +213,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.9</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.10</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -373,7 +373,7 @@ function pseudoMoves(board,color,castling,ep){
         if(rk(fwd)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to:fwd,promotion:pp});}
         else{
           moves.push({from,to:fwd});
-          if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
+          if((ri===sr||(SETTINGS.tripleMove&&hasPutnTake()&&ri===br))&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
           // Triple push: pawn placed on back rank via P'N'T can advance 3 if all clear
           if(SETTINGS.tripleMove&&hasPutnTake()&&ri===br){
             const s2=from+d*16,s3=from+d*24;

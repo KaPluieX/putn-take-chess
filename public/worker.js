@@ -67,7 +67,7 @@ function pseudoMoves(board,color,castling,ep){
         if(rk(fwd)===pr){for(const pp of['Q','R','B','N'])moves.push({from,to:fwd,promotion:pp});}
         else{
           moves.push({from,to:fwd});
-          if(ri===sr&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
+          if((ri===sr||(SETTINGS.tripleMove&&hasPutnTake()&&ri===br))&&!board[from+d*16])moves.push({from,to:from+d*16,dp:true});
           if(SETTINGS.tripleMove&&hasPutnTake()&&ri===br){
             const s2=from+d*16,s3=from+d*24;
             if(s3>=0&&s3<64&&!board[s2]&&!board[s3])moves.push({from,to:s3,tp:true});
