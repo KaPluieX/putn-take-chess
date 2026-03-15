@@ -213,7 +213,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.13</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.14</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -1276,10 +1276,15 @@ function afterTurn(){
     // humanLegalMoves still correctly finds no legal moves. As a safety net,
     // if every pseudo-legal move leads to check (all moves filtered), call it checkmate.
     const inCheck=isInCheck(G.board,G.turn);
-    // Safety net: if pseudo-legal moves exist but ALL were filtered (every move leads to check),
-    // call it checkmate regardless of what isInCheck says on the static position.
-    // This covers cases where check detection has edge-case false negatives.
-    const allMovesLeadToCheck=!inCheck&&pseudoMoves(G.board,G.turn,G.castling,G.ep).length>0;
+    const pseudos=pseudoMoves(G.board,G.turn,G.castling,G.ep);
+    const allMovesLeadToCheck=!inCheck&&pseudos.length>0;
+    // Diagnostic — open browser console (F12) next time stalemate looks wrong
+    if(!inCheck){
+      const ks=G.board.findIndex(p=>p===G.turn+'K');
+      console.warn('[PNT] STALEMATE DIAG turn='+G.turn+' pseudos='+pseudos.length+' humanLegal=0 inCheck='+inCheck);
+      console.warn('[PNT] BOARD',JSON.stringify(G.board));
+      if(ks>=0)console.warn('[PNT] KING sq='+ks+' r='+rk(ks)+' f='+fl(ks)+' isAttacked='+isAttacked(G.board,ks,opp(G.turn)));
+    }
     G.gameOverMsg=(inCheck||allMovesLeadToCheck)
       ?(opp(G.turn)==='w'?'White':'Black')+' wins - '+mateMsg
       :'Stalemate - Draw';
