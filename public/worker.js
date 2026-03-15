@@ -176,7 +176,7 @@ function genSuperMoves(board,color,castling,ep){
         if(isInCheck(tb,color))continue;
         res.push({...m,placeSq:s});added=true;
       }
-      if(!added)res.push(m);
+      // No valid placement → capture is genuinely illegal, don't push.
     } else res.push(m);
   }
   return res;
