@@ -169,6 +169,27 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 #chatSend:hover{background:rgba(74,222,128,.2);}
 
 /* Settings overlay */
+/* ── Position Editor ─────────────────────────────────────── */
+#editorPanel{display:none;background:#13192e;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:14px 16px;margin:8px auto;max-width:480px;width:100%;}
+#editorPanel.show{display:block;}
+.ep-title{font-size:.82rem;font-weight:700;color:#f59e0b;letter-spacing:.04em;margin-bottom:10px;}
+.ep-palette{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.ep-piece{width:38px;height:38px;border-radius:8px;border:2px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);font-size:1.5rem;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;user-select:none;}
+.ep-piece:hover{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.35);}
+.ep-piece.ep-sel{border-color:#f59e0b;background:rgba(245,158,11,.18);}
+.ep-piece.ep-eraser{font-size:1rem;color:#f87171;}
+.ep-piece.ep-eraser.ep-sel{border-color:#f87171;background:rgba(248,113,113,.18);}
+.ep-row{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.ep-turn{font-size:.78rem;color:rgba(255,255,255,.6);}
+.ep-turn b{color:#e2e8f0;}
+.ep-tbtn{padding:4px 10px;border-radius:6px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.07);color:#e2e8f0;font-size:.75rem;cursor:pointer;}
+.ep-tbtn:hover{background:rgba(255,255,255,.14);}
+.ep-start{padding:5px 14px;border-radius:7px;border:none;background:#f59e0b;color:#000;font-weight:700;font-size:.8rem;cursor:pointer;}
+.ep-start:hover{background:#fbbf24;}
+.ep-clear{padding:5px 12px;border-radius:7px;border:1px solid rgba(248,113,113,.4);background:transparent;color:#f87171;font-size:.78rem;cursor:pointer;}
+.ep-clear:hover{background:rgba(248,113,113,.12);}
+.sq.ep-hover{background:rgba(245,158,11,.28)!important;}
+/* ── Settings ──────────────────────────────────────────── */
 #settingsOv{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);align-items:center;justify-content:center;z-index:200;}
 #settingsOv.show{display:flex;}
 #settingsMdl{background:#16213e;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:26px 28px;min-width:290px;max-width:360px;width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.7);}
@@ -213,7 +234,7 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
 </head>
 <body>
 <header>
-  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.14</span></div>
+  <div class="logo">Put'<span>N</span> Take <span style="font-size:.6rem;font-weight:400;color:rgba(255,255,255,.25);margin-left:4px;letter-spacing:.5px;">v1.15</span></div>
   <div class="hcontrols">
     <div class="vsel">
       <button class="vbtn active" id="vbtn-putn" onclick="setVariant('putn-take')">Put'N Take</button>
@@ -249,8 +270,21 @@ select.cbtn{appearance:none;padding-right:20px;background-image:url("data:image/
     <button class="cbtn" id="syncBtn" style="display:none;border-color:rgba(251,191,36,.4);color:#fbbf24;" onclick="doSyncRequest()" title="Re-sync board with opponent">↺ Sync</button>
     <button class="cbtn" id="onlineBtn" onclick="openOnline()" style="border-color:rgba(74,222,128,.3);color:#4ade80;">🌐 Online</button>
     <button class="cbtn" id="settingsBtn" onclick="openSettings()" style="border-color:rgba(167,139,250,.35);color:#a78bfa;" title="Rule settings">⚙️</button>
+    <button class="cbtn" id="editorBtn" onclick="toggleEditor()" style="border-color:rgba(245,158,11,.35);color:#f59e0b;" title="Edit position">✏️</button>
   </div>
 </header>
+
+<div id="editorPanel">
+  <div class="ep-title">✏️ POSITION EDITOR — click a piece then click a square to place it</div>
+  <div class="ep-palette" id="epPalette"></div>
+  <div class="ep-row">
+    <span class="ep-turn">Turn: <b id="epTurnLabel">White</b></span>
+    <button class="ep-tbtn" onclick="editorToggleTurn()">Switch turn</button>
+    <button class="ep-clear" onclick="editorClear()">🗑 Clear board</button>
+    <button class="ep-clear" onclick="editorReset()" style="border-color:rgba(100,200,100,.4);color:#86efac;">↺ Reset</button>
+    <button class="ep-start" onclick="editorStart()">▶ Play from here</button>
+  </div>
+</div>
 
 <div id="ghost"></div>
 <div id="rewindOv">
@@ -470,6 +504,126 @@ let SETTINGS={tripleMove:false};
 
 function openSettings(){document.getElementById('settingsOv').classList.add('show');}
 function closeSettings(){document.getElementById('settingsOv').classList.remove('show');}
+
+// ───── POSITION EDITOR ────────────────────────────────────
+const EP={
+  active:false,
+  selected:null, // piece key like 'wQ', or 'erase'
+  editTurn:'w',
+};
+const EP_PIECES=['wK','wQ','wR','wB','wN','wP','bK','bQ','bR','bB','bN','bP'];
+
+function buildEditorPalette(){
+  const pal=document.getElementById('epPalette');
+  pal.innerHTML='';
+  EP_PIECES.forEach(k=>{
+    const d=document.createElement('div');
+    d.className='ep-piece'+(EP.selected===k?' ep-sel':'');
+    d.title=k;
+    const sp=document.createElement('span');
+    sp.textContent=UP[k]||'?';
+    const isRhino=hasRhino()&&k[1]==='Q';
+    if(isRhino){sp.style.color=k[0]==='w'?'#f59e0b':'#b45309';}
+    else{sp.style.color=k[0]==='w'?'#fffde7':'#1a1a1a';if(k[0]==='w')sp.style.textShadow='0 1px 3px rgba(0,0,0,.5)';}
+    d.appendChild(sp);
+    d.addEventListener('click',()=>{EP.selected=EP.selected===k?null:k;buildEditorPalette();});
+    pal.appendChild(d);
+  });
+  // Eraser
+  const er=document.createElement('div');
+  er.className='ep-piece ep-eraser'+(EP.selected==='erase'?' ep-sel':'');
+  er.title='Erase piece';er.textContent='✕';
+  er.addEventListener('click',()=>{EP.selected=EP.selected==='erase'?null:'erase';buildEditorPalette();});
+  pal.appendChild(er);
+}
+
+function toggleEditor(){
+  EP.active=!EP.active;
+  const panel=document.getElementById('editorPanel');
+  const btn=document.getElementById('editorBtn');
+  if(EP.active){
+    EP.editTurn=G.turn;
+    EP.selected=null;
+    panel.classList.add('show');
+    btn.style.background='rgba(245,158,11,.15)';
+    buildEditorPalette();
+    editorUpdateTurnLabel();
+  } else {
+    panel.classList.remove('show');
+    btn.style.background='';
+    EP.selected=null;
+  }
+  renderBoard();
+}
+
+function editorHandleClick(si){
+  if(!EP.active)return false;
+  if(EP.selected===null){
+    // No piece selected: remove piece on click
+    G.board[si]=null;
+  } else if(EP.selected==='erase'){
+    G.board[si]=null;
+  } else {
+    G.board[si]=EP.selected;
+  }
+  renderBoard();
+  return true;
+}
+
+function editorToggleTurn(){
+  EP.editTurn=opp(EP.editTurn);
+  editorUpdateTurnLabel();
+}
+
+function editorUpdateTurnLabel(){
+  document.getElementById('epTurnLabel').textContent=EP.editTurn==='w'?'White':'Black';
+}
+
+function editorClear(){
+  G.board=new Array(64).fill(null);
+  renderBoard();
+}
+
+function editorReset(){
+  const saved=[...G.board];
+  newGame();
+  // newGame resets everything; restore editor state
+  EP.active=true;
+  EP.selected=null;
+  G.board=[...saved]; // actually reset to starting position (newGame already did that)
+  G.board=initBoard();
+  document.getElementById('editorPanel').classList.add('show');
+  document.getElementById('editorBtn').style.background='rgba(245,158,11,.15)';
+  buildEditorPalette();
+  editorUpdateTurnLabel();
+  renderBoard();
+}
+
+function editorStart(){
+  // Validate: both kings present?
+  const wk=G.board.some(p=>p==='wK'),bk=G.board.some(p=>p==='bK');
+  if(!wk||!bk){alert('Both kings must be on the board.');return;}
+  // Close editor, set turn, reset game state
+  EP.active=false;
+  document.getElementById('editorPanel').classList.remove('show');
+  document.getElementById('editorBtn').style.background='';
+  G.turn=EP.editTurn;
+  G.castling={wK:false,wQ:false,bK:false,bQ:false};
+  G.ep=null;
+  G.mode='normal';
+  G.selected=null;
+  G.legalDests=[];
+  G.lastFrom=null;G.lastTo=null;
+  G.history=[];G.histIdx=null;
+  G.snapshots=[{board:[...G.board],turn:G.turn,castling:{...G.castling},ep:G.ep}];
+  G.moveCount=0;
+  G.gameMode=document.getElementById('modeSelect').value;
+  G.aiColor=G.gameMode==='ai-w'?'w':G.gameMode==='ai-b'?'b':null;
+  updateHistory();renderBoard();updateStatus();updateHistNav();
+  // If AI moves first
+  if(!OL.active&&G.mode!=='gameover'&&G.gameMode!=='human'&&G.turn===G.aiColor)setTimeout(doAiMove,400);
+}
+
 function applySettings(){
   SETTINGS.tripleMove=document.getElementById('tripleMoveCb').checked;
   // Triple move only makes sense in P'N'T variants — show badge state
@@ -1153,6 +1307,7 @@ document.addEventListener('keydown',e=>{
 
 // ───── CLICK HANDLER ──────────────────────────────────────
 function handleClick(si){
+  if(editorHandleClick(si))return; // position editor intercepts
   if(G.mode==='gameover'||G.thinking||G.animating)return;
   if(G.mode==='placement'&&hasPutnTake()){
     if(G.board[si])return;
